@@ -1,0 +1,27 @@
+{
+    "method": "random",
+    "metric": {
+      "name": "avg_hm",
+      "goal": "maximize"
+    },
+    "parameters": {
+        "mixup_start_epoch": {
+            "distribution": "uniform",
+            "min": 10, "max": 100
+        },
+        "teacher_scheduling":{
+            "values":["true", "false"]
+        },
+        "dino_loss_weight": {
+            "distribution": "uniform",
+            "min": 0.0001, 
+            "max": 0.1
+        },
+        "classifier_last_layer":{
+            "values":["linear", "projection"]
+        },
+        "classifier_hidden_dim":{
+            "values":[256, 512, 1024, 2048]
+        }
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "method": "bayes",
+    "metric": {
+      "name": "base_session_acc",
+      "goal": "maximize"
+    },
+    "parameters": {
+        "sup_con_temp": {
+            "distribution": "uniform",
+            "min": 0.01, 
+            "max": 0.14
+        },
+        "sup_con_feat_dim":{
+            "values":[64, 128, 256, 512, 1024, 2048]
+        },
+        "rand_aug_sup_con":{
+            "values":["true", "false"]
+        },
+        "epochs_sup_con":{
+            "distribution": "int_uniform",
+            "min": 50, 
+            "max": 300
+        },
+        "batch_size_sup_con":{
+            "values":[1024, 2048, 4096, 6144]
+        },
+        "warm_sup_con":{
+            "values":["true", "false"]
+        },
+        "cosine_sup_con":{
+            "values":["true", "false"]
+        }
+    }
+}
+

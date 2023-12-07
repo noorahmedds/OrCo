@@ -1,0 +1,13 @@
+{
+    "method": "grid",
+    "metric": {
+      "name": "avg_hm",
+      "goal": "maximize"
+    },
+    "parameters": {
+        "sup_con_feat_dim":{
+            "values":[64, 128, 256, 512, 1024, 2048]
+        },
+    }
+}
+
