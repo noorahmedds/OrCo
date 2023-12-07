@@ -1,23 +1,23 @@
-# Few-Shot Incremental Learning with Continually Evolved Classifiers
+# OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning
 
-PyTorch implementation of Few-Shot Incremental Learning with Continually Evolved Classifiers
-[Paper](https://arxiv.org/abs/2104.03047)
+PyTorch implementation of OrCo Framework
+[Paper](...)
 
 If you use the code in this repo for your work, please cite the following bib entries:
 
-    @InProceedings{Zhang_2021_CVPR,
+    <!-- @InProceedings{Zhang_2021_CVPR,
         author = {Zhang, Chi and Song, Nan and Lin, Guosheng and Zheng, Yun and Pan, Pan and Xu, Yinghui},
         title = {Few-Shot Incremental Learning with Continually Evolved Classifiers},
         booktitle = {IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
         month = {June},
         year = {2021}
-        }
+        } -->
 ## Abstract
-Few-shot class-incremental learning (FSCIL) aims to design machine learning algorithms that can continually learn new concepts from a few data points, without forgetting knowledge of old classes. The difficulty lies in that limited data from new classes not only lead to significant overfitting issues but also exacerbate the notorious catastrophic forgetting problems. Moreover, as training data come in sequence in FSCIL, the learned classifier can only provide discriminative information in individual sessions, while FSCIL requires all classes to be involved for evaluation. In this paper, we address the FSCIL problem from two aspects. First, we adopt a simple but effective decoupled learning strategy of representations and classifiers that only the classifiers are updated in each incremental session, which avoids knowledge forgetting in the representations. By doing so, we demonstrate that a pre-trained backbone plus a non-parametric class mean classifier can beat state-of-the-art methods. Second, to make the classifiers learned on individual sessions applicable to all classes, we propose a Continually Evolved Classifier (CEC) that employs a graph model to propagate context information between classifiers for adaptation. To enable the learning of CEC, we design a pseudo incremental learning paradigm that episodically constructs a pseudo incremental learning task to optimize the graph parameters by sampling data from the base dataset. Experiments on three popular benchmark datasets, including CIFAR100, miniImageNet, and Caltech-USCD Birds-200-2011 (CUB200), show that our method significantly outperforms the baselines and sets new state-of-the-art results with remarkable advantages.
+Few-Shot Class Incremental Learning (FSCIL) introduces a paradigm in which the problem space expands with limited data. FSCIL methods inherently face the challenge of catastrophic forgetting as data arrives incrementally, making models susceptible to overwriting previously acquired knowledge. Moreover, given the scarcity of labeled samples available at any given time, models may be prone to overfitting and find it challenging to strike a balance between extensive pretraining and the limited incremental data. To address these challenges, we propose the OrCo framework built on two core principles: features' orthogonality in the representation space, and contrastive learning. In particular, we improve the generalization of the embedding space by employing a combination of supervised and self-supervised contrastive losses during the pretraining phase. Additionally, we introduce OrCo loss to address challenges arising from data limitations during incremental sessions. Through feature space perturbations and orthogonality between classes, the OrCo loss maximizes margins and reserves space for the following incremental data. This, in turn, ensures the accommodation of incoming classes in the feature space without compromising previously acquired knowledge. Our experimental results showcase state-of-the-art performance across three benchmark datasets, including mini-ImageNet, CIFAR100, and CUB datasets.
 
-<img src='cecoverview.png' width='600' height='400'>
+<!-- <img src='' width='600' height='400'> -->
 
-<p align="center">Continually Evolved Classifier</p>
+<!-- <p align="center">Continually Evolved Classifier</p> -->
 
 ## Pipline
 The whole learning pipline of our model:
@@ -27,7 +27,7 @@ The whole learning pipline of our model:
 ## Results
 <img src='results.png' width='2000' height='300'>
 
-Detailed numbers can be found in the [Supplementary Material](https://arxiv.org/pdf/2104.03047)
+<!-- Detailed numbers can be found in the [Supplementary Material](https://arxiv.org/pdf/2104.03047)
 
 ## Requirements
 - [PyTorch >= version 1.1](https://pytorch.org)
@@ -73,4 +73,4 @@ Our project references the codes in the following repos.
 
 - [fscil](https://github.com/xyutao/fscil)
 - [DeepEMD](https://github.com/icoz69/DeepEMD)
-- [FEAT](https://github.com/Sha-Lab/FEAT)
+- [FEAT](https://github.com/Sha-Lab/FEAT) -->
