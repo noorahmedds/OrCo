@@ -1,2 +1,2 @@
 __archive__/
-*.ckpt
+**/*.ckpt
