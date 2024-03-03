@@ -3,3 +3,4 @@ __archive__/
 
 checkpoint/*/
 
+__pycache__/
