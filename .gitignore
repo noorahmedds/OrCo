@@ -1,4 +1,5 @@
 __archive__/
 *.ckpt
 
-checkpoint/*
+checkpoint/*/
+
