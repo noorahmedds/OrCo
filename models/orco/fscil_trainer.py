@@ -21,10 +21,10 @@ class FSCILTrainer(Trainer):
     def __init__(self, args):
         super().__init__(args)
         self.args = args
-        self.set_save_path()
-        self.args = set_up_datasets(self.args)
+        self.set_save_path()                                                                            # Setting logs and artefact paths.
+        self.args = set_up_datasets(self.args)                                                          # Data wrapper inside the args object, passed throughout this file
 
-        self.writer = SummaryWriter(os.path.join(self.args.save_path, "logs"))
+        self.writer = SummaryWriter(os.path.join(self.args.save_path, "logs"))                          # Setting up tensorboard summary writer
 
         self.model = MYNET(self.args, mode=self.args.base_mode, writer = self.writer)
         self.model = nn.DataParallel(self.model, list(range(self.args.num_gpu)))

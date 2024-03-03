@@ -3,7 +3,6 @@ import math
 import torch.utils.model_zoo as model_zoo
 
 from torch.autograd import Variable
-from .base_mixup.mixup import mixup_data
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -86,42 +85,16 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    # def forward(self, x):
     def forward(self, x, targets = None, mixup = False, mixup_alpha = 0.1, layer_mix=None):
-        if mixup == True:
-            if layer_mix == 0:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-                x, y_a, y_b = map(Variable, (x, y_a, y_b))
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
 
-            x = self.relu(self.bn1(self.conv1(x)))
-            x = self.layer1(x)
-            if layer_mix == 1:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-            
-            x = self.layer2(x)
-            if layer_mix == 2:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-            
-            x = self.layer3(x)
-            if layer_mix == 3:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
 
-            return x, y_a, y_b, lam
-
-        else:
-            x = self.conv1(x)
-            x = self.bn1(x)
-            x = self.relu(x)
-
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-
-            # x = self.avgpool(x)
-            # x = x.view(x.size(0), -1)
-            # x = self.fc(x)
-
-            return x
+        return x
 
 def resnet20(**kwargs):
     n = 3

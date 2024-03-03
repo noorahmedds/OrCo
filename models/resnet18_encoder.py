@@ -15,7 +15,6 @@ from urllib.request import urlopen
 from urllib.parse import urlparse  # noqa: F401
 
 from torch.autograd import Variable
-from .base_mixup.mixup import mixup_data
 import utils
 
 def load_state_dict_from_url(url, model_dir=None, map_location=None, progress=True):
@@ -320,54 +319,20 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x, targets = None, mixup = False, mixup_alpha = 0.1, layer_mix=None, sup_con=False):
-        if mixup == True:
-            if layer_mix == 0:
-                if not sup_con:
-                    x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-                else:
-                    x, y_a, y_b, lam = utils.mixup_data_sup_con(x, targets, mixup_alpha)
-                x, y_a, y_b = map(Variable, (x, y_a, y_b))
-            
-            x = self.relu(self.bn1(self.conv1(x)))
-            x = self.maxpool(x)
-            x = self.layer1(x)
-            if layer_mix == 1:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
 
-            x = self.layer2(x)
-            if layer_mix == 2:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-            
-            x = self.layer3(x)
-            if layer_mix == 3:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
-            
-            x = self.layer4(x)
-            if layer_mix == 4:
-                x, y_a, y_b, lam = mixup_data(x, targets, mixup_alpha)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
 
-            return x, y_a, y_b, lam
-        else:
-            x = self.conv1(x)
-            x = self.bn1(x)
-            x = self.relu(x)
-            x = self.maxpool(x)
+        out = self.avgpool(x)
+        out = out.view(out.size(0), -1)
 
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
-
-            out = self.avgpool(x)
-            out = out.view(out.size(0), -1)
-
-            return out
-
-        # x = self.avgpool(x)
-        # x = torch.flatten(x, 1)
-        # x = self.fc(x)
-        # x = F.linear(F.normalize(x, p=2, dim=-1), F.normalize(self.fc.weight, p=2, dim=-1))
-        # x = temperature * x
+        return out
 
 
 

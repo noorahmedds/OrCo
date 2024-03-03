@@ -2,13 +2,18 @@ import argparse
 import importlib
 from utils import *
 
-MODEL_DIR=None
+# Global
 DATA_DIR = '../../datasets/'
-PROJECT='base'
-SAVE_PATH_PREFIX = ""
 
 def get_command_line_parser():
     parser = argparse.ArgumentParser()
+
+    parser.add_argument('-project', type=str, default="orco")
+    parser.add_argument('-dataset', type=str, default='mini_imagenet',
+                        choices=['mini_imagenet', 'cub200', 'cifar100'])
+    parser.add_argument('-dataroot', type=str, default=DATA_DIR)
+
+    # --- Other Params ---
 
     parser.add_argument('-test', action="store_true", help="Rerun the testing for the experiments")
     parser.add_argument('-experiment_path', type=str, default="")
@@ -16,7 +21,6 @@ def get_command_line_parser():
     parser.add_argument('-t_scaling', action="store_true", help="run temperature scaling after the base session")
     parser.add_argument('-base_only', action="store_true", help="cross entropy with only base classes in the denominator")
     parser.add_argument('-balanced_testing', action="store_true", help="Do Balanced testing")
-
 
     # dino
     parser.add_argument('-all_crops', action="store_true", help="")
@@ -111,12 +115,8 @@ def get_command_line_parser():
 
     # about dataset and network
     parser.add_argument('-sweep_json', type=str, default="sweep_config/dino_sweep.json")
-    parser.add_argument('-project', type=str, default=PROJECT)
-    parser.add_argument('-dataset', type=str, default='cub200',
-                        choices=['mini_imagenet', 'cub200', 'cifar100'])
-    parser.add_argument('-dataroot', type=str, default=DATA_DIR)
     parser.add_argument('-freeze_backbone', action="store_true", help="Backbone of the resnet model is frozen")
-    parser.add_argument('-save_path_prefix', "-prefix", type=str, default=SAVE_PATH_PREFIX)
+    parser.add_argument('-save_path_prefix', "-prefix", type=str, default="")
     parser.add_argument('-skip_wandb', action="store_true", help="Skip syncing with wandb")
 
     # about data augmentation
@@ -196,7 +196,7 @@ def get_command_line_parser():
     
     parser.add_argument('-start_session', type=int, default=0)
     parser.add_argument('-end_session', type=int, default=-1)
-    parser.add_argument('-model_dir', type=str, default=MODEL_DIR, help='loading model parameter from a specific dir')
+    parser.add_argument('-model_dir', type=str, help='loading model parameter from a specific dir')
     parser.add_argument('-set_no_val', action='store_true', help='set validation using test set or no validation')
 
     # about training
@@ -328,15 +328,12 @@ def get_command_line_parser():
     return parser
 
 if __name__ == '__main__':
+    # Parse Arguments
     parser = get_command_line_parser()
     args = parser.parse_args()
     set_seed(args.seed)
-    # pprint(vars(args))
     args.num_gpu = set_gpu(args)
     
+    # Trainer initialization
     trainer = importlib.import_module('models.%s.fscil_trainer' % (args.project)).FSCILTrainer(args)
-
-    if args.test:
-        trainer.sessional_test()
-    else:
-        trainer.train()
+    trainer.train()

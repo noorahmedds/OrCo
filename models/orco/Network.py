@@ -2,11 +2,14 @@ import sys
 import os
 sys.path.append(os.path.dirname(__file__))
 
-import argparse
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
+from scheduler.lr_scheduler import LinearWarmupCosineAnnealingLR
+import supcon
+
+from torchvision.models import resnet18 as tv_resnet18
 from models.resnet18_encoder import *
 from models.resnet20_cifar import *
 from models.resnet12_encoder import *
@@ -15,27 +18,14 @@ from models.resnet12_nc import *
 
 from helper import *
 from mixup import *
-import supcon
-
-from tqdm import tqdm
-from pdb import set_trace as bp
-
 from utils import *
-from scheduler.lr_scheduler import LinearWarmupCosineAnnealingLR
-
 from copy import deepcopy
 
-from torch.autograd import Variable
-
-from geom_median.torch import compute_geometric_median
-
-import gaussian_utils
+from tqdm import tqdm
 
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
 from scipy.optimize import linear_sum_assignment
-
-from torchvision.models import resnet18 as tv_resnet18
 
 from ema_pytorch import EMA
 

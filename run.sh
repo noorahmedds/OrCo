@@ -1,15 +1,3 @@
-# # mini_imagenet for confusion matrix
-# python train.py -project base -dataset mini_imagenet -model_dir ./checkpoint/base_training_ckpt/mini_imagenet/base/ft_dot/session0_70_500.pth -start_session 1 -gpu 2 -new_mode ft_dot -epochs_new 150 -base_mode ft_dot -save_path_prefix "exp_mini_imagenet_conf_mat"
-
-# # Cub200
-# python train.py -project base -dataset cub200 -model_dir checkpoint/base_training_ckpt/cub200/base/ft_dot/session0_70_976.pth -start_session 1 -gpu 2 -new_mode ft_dot -epochs_new 150 -base_mode ft_dot -save_path_prefix "exp_cub200_conf_mat"
-
-# python train.py -project base_infonce -dataset mini_imagenet -model_dir ./checkpoint/base_training_ckpt/mini_imagenet/base/ft_dot/session0_70_500.pth -gpu 1 -start_session 1 -save_path_prefix "exp_miniimagenet_infonce_log" -epochs_new 150
-
-
-# # CUB 200 label smoothing
-# python train.py -project base -dataset cub200 -gpu 0 -base_mode ft_dot -new_mode ft_dot -epochs_base 200 -epochs_new 150 -save_path_prefix "exp_cub200_labelsmoothing_0.5" -label_smoothing 0.5
-
-# python train.py -project base -dataset cub200 -start_session 1 -gpu 2 -new_mode ft_dot -epochs_new 150 -save_path_prefix "exp_corrected_joint_session" -model_dir "./checkpoint/base_training_ckpt/cub200/base/ft_dot/session0_70_976.pth" -label_smoothing 0.5
-
-python train.py -project base -dataset cifar100 -start_session 0 -gpu 2 -new_mode ft_dot -epochs_new 150 -save_path_prefix "exp_corrected_joint_session"
+## Mini-ImageNet 
+# Reset Setting best result
+cmd="python train.py -project base_supcon_srv3 -dataset mini_imagenet -start_session 1 -gpu 1 -sup_con_pretrain -batch_size_joint 64 -train_inter -epochs_joint 100 -model_dir /BS/fscil/work/code/solo-learn/trained_models/supcon/muqbelec/minet_e380_01simclr_acc85_95.ckpt -reserve_mode all -epochs_base 10 -pull_criterion_novel xent -pull_criterion_base xent -joint_supcon -validation_metric hm -joint_schedule Cosine -decay_new 1e-4 -decay 1e-4 -cos_b_lam 0 -init_sess_w_base_proj -perturb_mode inc+curr-base -sup_lam 1 -cos_lam 1 -simplex_lam 1 -save_path_prefix best_minet_simclr01_convexcomb_pert_offset -perturb_offset 0.5"
