@@ -73,7 +73,7 @@ def get_command_line_parser():
     
     # contrast
     parser.add_argument('-ce_pretrain', action="store_true", help="Pretrain on supcon")      
-    parser.add_argument('-sup_con_pretrain', action="store_true", help="Pretrain on supcon")                                                    # True
+    # parser.add_argument('-sup_con_pretrain', action="store_true", help="Pretrain on supcon")                                                    # True
     parser.add_argument('-sup_con_base', action="store_true", help="Apply supcon in a multi task fashion during the base session")              # False
     parser.add_argument('-use_sup_con_head', action="store_true", help="Have a projection mlp before the sup con loss for encoding projection") # True
     parser.add_argument('-sup_con_feat_dim', type=int, default=128)                                                                             # 128
@@ -195,7 +195,6 @@ def get_command_line_parser():
     parser.add_argument('-low_way', type=int, default=15)
     
     parser.add_argument('-start_session', type=int, default=0)
-    parser.add_argument('-end_session', type=int, default=-1)
     parser.add_argument('-model_dir', type=str, help='loading model parameter from a specific dir')
     parser.add_argument('-set_no_val', action='store_true', help='set validation using test set or no validation')
 

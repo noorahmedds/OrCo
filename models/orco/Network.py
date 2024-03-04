@@ -466,7 +466,7 @@ class SRHead(nn.Module):
         
 class MYNET(nn.Module):
 
-    def __init__(self, args, mode=None, writer=None):
+    def __init__(self, args, mode=None):
         super().__init__()
 
         self.mode = mode
@@ -525,8 +525,6 @@ class MYNET(nn.Module):
             self.proj_hidden_dim = 2048
             self.proj_output_dim = 256 # 256
 
-        self.writer = writer
-
         # Sup con projection also the projector which gets fine tuned during the joint session
         self.projector = self.select_projector()
 
@@ -537,6 +535,12 @@ class MYNET(nn.Module):
         self.path2conf = {}
 
         self.projector_ema = None
+
+    def set_projector(self):
+        self.set_projector = deepcopy(self.projector.state_dict())
+
+    def reset_projector(self):
+        self.projector = torch.load(self.set_projector)
 
     def init_proj_ema(self):
         self.projector_ema = EMA(
@@ -647,28 +651,21 @@ class MYNET(nn.Module):
             raise ValueError('Unknown mode')
 
     def update_fc(self, trainloader, testloader, class_list, session, mode="encoder"):
-        if not self.args.online_assignment: # Skip assignment if online assignment
-            for batch in trainloader:
-                data, label = [_.cuda() for _ in batch]
-                if mode=="encoder":
-                    data=self.encode(data).detach()
-                elif mode == "backbone":
-                    data=self.encoder(data).detach()
+        for batch in trainloader:
+            data, label = [_.cuda() for _ in batch]
+            if mode=="encoder":
+                data=self.encode(data).detach()
+            elif mode == "backbone":
+                data=self.encoder(data).detach()
 
-            new_prototypes, cov_list = self.get_class_avg(data, label, class_list)
+        new_prototypes, cov_list = self.get_class_avg(data, label, class_list)
 
-            # Assign a new novel classifier from the given reseve vectors
-            # Out of these reserve vectors we choose vectors which minimize the shift of the projector
-            # I.e. we choose reserve vectors for each class in the incremental session
-            # Based on the linear sum assignment
-            if mode == "encoder":
-                self.fc.assign_novel_classifier(new_prototypes, cov_list=cov_list)
-        else:
-            print ("Novel assignment skipped. Performing Assignmnet in the joint session only")
-
-        # Use bnce to fine tune novel classifier
-        if self.args.apply_bnce:
-            self.update_fc_ft_novel(trainloader, testloader, session)
+        # Assign a new novel classifier from the given reseve vectors
+        # Out of these reserve vectors we choose vectors which minimize the shift of the projector
+        # I.e. we choose reserve vectors for each class in the incremental session
+        # Based on the linear sum assignment
+        if mode == "encoder":
+            self.fc.assign_novel_classifier(new_prototypes, cov_list=cov_list)
 
     def update_fc_online(self, trainloader, class_list):
         # To handle batched data

@@ -3,7 +3,6 @@ python "train.py" \
     -dataset mini_imagenet \
     -start_session 1 \
     -gpu 0 \
-    -sup_con_pretrain \
     -batch_size_joint 64 \
     -train_inter \
     -epochs_joint 100 \
@@ -25,6 +24,7 @@ python "train.py" \
     -simplex_lam 1 \
     -save_path_prefix minet \
     -perturb_offset 0.5
+    # -sup_con_pretrain \
 
 # Args to remove: start_session (assign default value), supcon pretrain is always on, reserve mode default, joint supcon can be removed
 # pull criterion can be removed

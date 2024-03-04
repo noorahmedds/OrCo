@@ -14,6 +14,116 @@ from mixup import *
 from supcon import *
 from knn_classifier import WeightedKNNClassifier
 
+def test(model, testloader, epoch, args, session):
+    test_class = args.base_class + session * args.way
+    model = model.eval()
+    vl = Averager()
+    va = Averager()
+    cw_acc = Averager()
+    base_cw = Averager()
+    novel_cw = Averager()
+
+    # vaBase = Averager() # Averager for novel classes only        
+    # vaNovel = Averager() # Averager for novel classes only
+    # vaPrevNovel = Averager()
+
+    # model.eval()   # Turn off
+    
+    all_targets=[]
+    all_probs=[]
+    all_projections = []
+
+    with torch.no_grad():
+        tqdm_gen = tqdm(testloader)
+        for i, batch in enumerate(tqdm_gen, 1):
+            data, test_label = [_.cuda() for _ in batch]
+            
+            logits, projection = model(data)
+            logits = logits[:, :test_class]
+
+            all_targets.append(test_label)
+            all_probs.append(logits)
+            all_projections.append(projection)
+
+            loss = F.cross_entropy(logits, test_label)
+            
+            acc = count_acc(logits, test_label)
+
+            vl.add(loss.item())
+            va.add(acc)
+
+        vl = vl.item()
+        va = va.item()
+
+    # Concatenate all_targets and probs
+    all_targets = torch.cat(all_targets)
+    all_probs = torch.cat(all_probs, axis=0)
+
+    # Compute false positives
+    fpr = {
+            "novel2base": 0,    # Count of samples from novel classes selected as base / Total novel samples
+            "base2novel": 0,    # Count of samples from base classes selected as novel 
+            "base2base": 0,     # Count of samples from base classes selected as other base
+            "novel2novel": 0,    # Count of samples from novel classes selected as other novels
+            "total_novel": 0,
+            "total_base": 0
+        }
+    fpr = count_fp(all_probs, all_targets, test_class, args, fpr)
+    fpr["base2base"] /= fpr["total_base"]
+    if session > 0:
+        fpr["novel2base"] /= fpr["total_novel"]
+        fpr["base2novel"] /= fpr["total_base"]
+        fpr["novel2novel"] /= fpr["total_novel"]
+
+    # Now compute vaNovel as
+    novel_mask = all_targets >= args.base_class
+    pred = torch.argmax(all_probs, dim=1)[novel_mask]
+    label_ = all_targets[novel_mask]
+    novel_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
+
+    # Compute base acc as
+    base_mask = all_targets < args.base_class
+    pred = torch.argmax(all_probs, dim=1)[base_mask]
+    label_ = all_targets[base_mask]
+    base_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
+
+    vaSession = count_acc_session(all_probs, all_targets, args)
+
+    # Compute class wise accuracy
+    for l in all_targets.unique():
+        # Get class l mask
+        class_mask = all_targets == l
+        pred = torch.argmax(all_probs, dim=1)[class_mask]
+        label_ = all_targets[class_mask]
+        class_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
+        cw_acc.add(class_acc)
+        
+        if l < args.base_class:
+            base_cw.add(class_acc)
+        else:
+            novel_cw.add(class_acc)
+        
+    cw_acc = cw_acc.item()
+    
+    # Compute va using class-wise accuracy
+    pred = torch.argmax(all_probs, dim=1)
+    va = class_acc = (pred == all_targets).type(torch.cuda.FloatTensor).mean().item()
+    
+    cos_sims = {
+        "inter":0,
+        "intra":0
+    }
+    # Compute inter and intra class cosine similarity
+    projection_features = torch.cat(all_projections, axis = 0)
+    if 0 not in model.module.fc.rv.shape:
+        cos_sim_to_unassigned = F.cosine_similarity(projection_features[None,:,:], model.module.fc.rv[:,None,:], dim=-1).mean()
+        print(f"===> For session {session}: The cosine similarity for all projected test features to unassigned targets = {cos_sim_to_unassigned:.3f}")
+
+    cos_sims["inter"] = compute_inter_class_cosine_similarity(projection_features, all_targets)
+    cos_sims["intra"] = compute_intra_class_cosine_similarity(projection_features, all_targets)
+    
+    return vl, va, novel_acc, base_acc, vaSession, cw_acc, novel_cw.item(), base_cw.item(), cos_sims, fpr
+
 def sup_con_pretrain(model, criterion, trainloader, testloader, optimizer, scheduler, epoch, args):
     tl = Averager()
     model = model.train()
@@ -276,102 +386,6 @@ def replace_base_fc_balanced(trainset, transform, model, args):
 
     return model
 
-def test(model, testloader, epoch, args, session, base_sess = False, max_inference=False):
-    test_class = args.base_class + session * args.way
-    model = model.eval()
-    vl = Averager()
-    va = Averager()
-
-    # >>> Addition
-    vaBase = Averager() # Averager for novel classes only        
-    vaNovel = Averager() # Averager for novel classes only
-    vaPrevNovel = Averager()
-    
-    all_targets=[]
-    all_probs=[]
-
-    vaSession = [Averager()] * args.sessions
-
-    with torch.no_grad():
-        tqdm_gen = tqdm(testloader)
-        for i, batch in enumerate(tqdm_gen, 1):
-            data, test_label = [_.cuda() for _ in batch]
-            
-            logits, encoding = model(data)
-            logits = logits[:, :test_class]
-
-            all_targets.append(test_label)
-            all_probs.append(logits)
-
-            loss = F.cross_entropy(logits, test_label)
-            
-            acc = count_acc(logits, test_label)
-
-            # >>> Addition
-            novelAcc, baseAcc = count_acc_(logits, test_label, test_class, args)
-
-            vaSession = count_acc_session(logits, test_label, args, vaSession)
-
-            if session > 1:
-                # Caluclate the novel accuracy from the previous sessions
-                prevNovelAcc = count_acc_previous(logits, test_label, test_class, args)
-                vaPrevNovel.add(prevNovelAcc)
-
-            # TODO: Check, if novelAcc is not None:
-            vaNovel.add(novelAcc)
-            vaBase.add(baseAcc)
-
-            vl.add(loss.item())
-            va.add(acc)
-
-        vl = vl.item()
-        va = va.item()
-
-        # >>> Addition 
-        vaNovel = vaNovel.item()
-        vaBase = vaBase.item()
-        vaPrevNovel = vaPrevNovel.item()
-
-    vhm = hm(vaNovel, vaBase)
-    vam = am(vaNovel, vaBase)
-
-    all_targets = torch.cat(all_targets, axis = 0)
-    cm = createConfusionMatrix( #plot_confusion_matrix(
-        all_targets.cpu().numpy(), 
-        torch.argmax(torch.cat(all_probs, axis = 0), axis = 1).cpu().numpy(),
-        [str(i) for i in range(test_class)],
-        hline_at = args.base_class,
-        vline_at = args.base_class,
-        session = session
-    )
-
-    cmSummary = None
-    cmNovel = None
-    if not base_sess:
-        cmSummary = createConfusionMatrix( #plot_confusion_matrix(
-            all_targets.cpu().numpy(), 
-            torch.argmax(torch.cat(all_probs, axis = 0), axis = 1).cpu().numpy(),
-            [str(i) for i in range(test_class)],
-            hline_at = args.base_class,
-            vline_at = args.base_class,
-            summarize = True,
-            session = session
-        )
-
-        # Creating confusion matrix just for the novel classes on the novel sub space
-        novel_idx = all_targets >= args.base_class
-        novel_probs = torch.cat(all_probs, axis = 0)[novel_idx, args.base_class:]
-        novel_targets = all_targets[novel_idx] - args.base_class
-        cmNovel = createConfusionMatrix( #plot_confusion_matrix(
-            novel_targets.cpu().numpy(), 
-            torch.argmax(novel_probs, axis = 1).cpu().numpy(),
-            [str(i) for i in range(args.base_class, test_class)],
-            cmap="crest",
-            session = session
-        )
-        
-    return vl, va, vaNovel, vaBase, vhm, vam, cm, cmNovel, cmSummary, vaPrevNovel, vaSession
-
 def get_base_fc(trainset, transform, model, args, return_embeddings=False, return_cov=False, mode="encoder"):
     # replace fc.weight with the embedding average of train data
     model = model.eval()
@@ -568,119 +582,6 @@ def get_new_fc(trainset, transform, model, args, class_list, views=1, return_emb
         prototypes = (prototypes, embedding_list, label_list)
         
     return prototypes
-
-
-def test_fixed(model, testloader, epoch, args, session):
-    test_class = args.base_class + session * args.way
-    model = model.eval()
-    vl = Averager()
-    va = Averager()
-    cw_acc = Averager()
-    base_cw = Averager()
-    novel_cw = Averager()
-
-    # vaBase = Averager() # Averager for novel classes only        
-    # vaNovel = Averager() # Averager for novel classes only
-    # vaPrevNovel = Averager()
-
-    # model.eval()   # Turn off
-    
-    all_targets=[]
-    all_probs=[]
-    all_projections = []
-
-    with torch.no_grad():
-        tqdm_gen = tqdm(testloader)
-        for i, batch in enumerate(tqdm_gen, 1):
-            data, test_label = [_.cuda() for _ in batch]
-            
-            logits, projection = model(data)
-            logits = logits[:, :test_class]
-
-            all_targets.append(test_label)
-            all_probs.append(logits)
-            all_projections.append(projection)
-
-            loss = F.cross_entropy(logits, test_label)
-            
-            acc = count_acc(logits, test_label)
-
-            vl.add(loss.item())
-            va.add(acc)
-
-        vl = vl.item()
-        va = va.item()
-
-    # Concatenate all_targets and probs
-    all_targets = torch.cat(all_targets)
-    all_probs = torch.cat(all_probs, axis=0)
-
-    # Compute false positives
-    fpr = {
-            "novel2base": 0,    # Count of samples from novel classes selected as base / Total novel samples
-            "base2novel": 0,    # Count of samples from base classes selected as novel 
-            "base2base": 0,     # Count of samples from base classes selected as other base
-            "novel2novel": 0,    # Count of samples from novel classes selected as other novels
-            "total_novel": 0,
-            "total_base": 0
-        }
-    fpr = count_fp(all_probs, all_targets, test_class, args, fpr)
-    fpr["base2base"] /= fpr["total_base"]
-    if session > 0:
-        fpr["novel2base"] /= fpr["total_novel"]
-        fpr["base2novel"] /= fpr["total_base"]
-        fpr["novel2novel"] /= fpr["total_novel"]
-
-    # TODO: Use confusion matrix instead
-
-    # Now compute vaNovel as
-    novel_mask = all_targets >= args.base_class
-    pred = torch.argmax(all_probs, dim=1)[novel_mask]
-    label_ = all_targets[novel_mask]
-    novel_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
-
-    # Compute base acc as
-    base_mask = all_targets < args.base_class
-    pred = torch.argmax(all_probs, dim=1)[base_mask]
-    label_ = all_targets[base_mask]
-    base_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
-
-    vaSession = count_acc_session(all_probs, all_targets, args)
-
-    # Compute class wise accuracy
-    for l in all_targets.unique():
-        # Get class l mask
-        class_mask = all_targets == l
-        pred = torch.argmax(all_probs, dim=1)[class_mask]
-        label_ = all_targets[class_mask]
-        class_acc = (pred == label_).type(torch.cuda.FloatTensor).mean().item()
-        cw_acc.add(class_acc)
-        
-        if l < args.base_class:
-            base_cw.add(class_acc)
-        else:
-            novel_cw.add(class_acc)
-        
-    cw_acc = cw_acc.item()
-    
-    # Compute va using class-wise accuracy
-    pred = torch.argmax(all_probs, dim=1)
-    va = class_acc = (pred == all_targets).type(torch.cuda.FloatTensor).mean().item()
-    
-    cos_sims = {
-        "inter":0,
-        "intra":0
-    }
-    # Compute inter and intra class cosine similarity
-    projection_features = torch.cat(all_projections, axis = 0)
-    if 0 not in model.module.fc.rv.shape:
-        cos_sim_to_unassigned = F.cosine_similarity(projection_features[None,:,:], model.module.fc.rv[:,None,:], dim=-1).mean()
-        print(f"===> For session {session}: The cosine similarity for all projected test features to unassigned targets = {cos_sim_to_unassigned:.3f}")
-
-    cos_sims["inter"] = compute_inter_class_cosine_similarity(projection_features, all_targets)
-    cos_sims["intra"] = compute_intra_class_cosine_similarity(projection_features, all_targets)
-    
-    return vl, va, novel_acc, base_acc, vaSession, cw_acc, novel_cw.item(), base_cw.item(), cos_sims, fpr
 
 
 def extract_features(model, loader):
