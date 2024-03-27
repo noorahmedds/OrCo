@@ -714,9 +714,6 @@ def get_supcon_joint_dataloader(args, session, path2conf):
         trainloader = torch.utils.data.DataLoader(dataset=trainset, batch_size=args.batch_size_joint, shuffle=True,
                                                   num_workers=args.num_workers, pin_memory=True, drop_last = args.drop_last_batch)
 
-    # All unique targets
-    print("All unique targets in this joint set, ", np.unique(trainset.targets))
-
     return trainset, trainloader
 
 def get_supcon_dataloader_base_balanced(args):
@@ -893,8 +890,5 @@ def get_supcon_new_dataloader(args, session):
     else:
         trainloader = torch.utils.data.DataLoader(dataset=trainset, batch_size=args.batch_size_joint, shuffle=True,
                                                   num_workers=args.num_workers, pin_memory=True)
-
-    # All unique targets
-    print("All unique targets in this joint set, ", np.unique(trainset.targets))
 
     return trainset, trainloader

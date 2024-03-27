@@ -223,10 +223,6 @@ def mixup_data_sup_con(x, y, alpha=1.0, use_cuda=True):
     y_a, y_b = y, y[index]
     return mixed_x, y_a, y_b, lam
 
-# def count_hm(logits, label, args):
-#     # Find the accuracy for the base classes alone. That would be the pred[:base_class] == base_class_labels, pred[novel_classes] == pred_class_labels and then a harmonic mean over these values
-#     # TODO:
-
 def compute_hn_cosine_embedding_loss(encoding, logits, label, session):
     # Get softmax weighting for hardnegatives
 

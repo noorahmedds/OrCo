@@ -464,7 +464,7 @@ class SRHead(nn.Module):
         return output
 
         
-class MYNET(nn.Module):
+class ORCONET(nn.Module):
 
     def __init__(self, args, mode=None):
         super().__init__()
@@ -472,67 +472,29 @@ class MYNET(nn.Module):
         self.mode = mode
         self.args = args
         
-        if self.args.dataset in ['cifar100']:
-            if "FSCIL_ALICE" in self.args.model_dir:
-                # == Alice resnet
-                self.encoder = resnet_CIFAR.ResNet18()
-                self.encoder_outdim = 512
-                self.proj_hidden_dim = 2048
-                self.proj_output_dim = 2048  #128
-                self.encoder.fc = nn.Identity()
-            else:
-                # == Resnet12_nc
-                self.encoder = resnet12_nc()
-                self.encoder_outdim = 640
-                self.proj_hidden_dim = 2048
-                self.proj_output_dim = 128 if self.args.proj_output_dim < 0 else self.args.proj_output_dim # 128
-
-            # == Basic torchvision resnet
-            # self.encoder = tv_resnet18()
-            # self.encoder.conv1 = nn.Conv2d(
-            #     3, 64, kernel_size=3, stride=1, padding=2, bias=False
-            # )
-            # self.encoder.maxpool = nn.Identity()
-
-            # self.encoder.fc = nn.Identity()
-            # self.encoder_outdim = 512
-            # self.proj_hidden_dim = 2048
-            # self.proj_output_dim = 128
-            
-        if self.args.dataset in ['mini_imagenet']:
-            self.encoder = resnet_CIFAR.ResNet18()  # out_dim = 128
-            self.encoder.fc = nn.Identity()
-            self.encoder_outdim = 512
-
-            # From solo learn
-            self.proj_hidden_dim = self.args.proj_hidden_dim #2048
-            self.proj_output_dim = 128 if self.args.proj_output_dim < 0 else self.args.proj_output_dim # 128
-        if self.args.dataset == 'cub200':
-            # Original 
-            # self.encoder = resnet18(True, args)  # pretrained=True follow TOPIC, models for cub is imagenet pre-trained. https://github.com/xyutao/fscil/issues/11#issuecomment-687548790
-            # self.encoder_outdim = 512
-            # self.proj_hidden_dim = 2048
-            # self.proj_output_dim = 256
-
-            # Torch vision Resnet
-            # self.encoder = tv_resnet18()
-            self.encoder = tv_resnet18(pretrained=True) # Originally we use this
-            # self.encoder = tv_resnet18(weights = "ResNet18_Weights.DEFAULT")
-            self.encoder.fc = nn.Identity()
-            
-            self.encoder_outdim = 512
-
+        if self.args.dataset == 'cifar100':
+            self.encoder = resnet12_nc()
+            self.encoder_outdim = 640
             self.proj_hidden_dim = 2048
-            self.proj_output_dim = 256 # 256
+            self.proj_output_dim = 128
+        if self.args.dataset == 'mini_imagenet':
+            self.encoder = resnet_CIFAR.ResNet18()  
+            self.encoder.fc = nn.Identity()         # Bypassing the fully connected layer    
+            self.encoder_outdim = 512
+            self.proj_hidden_dim = 2048
+            self.proj_output_dim = 128
+        if self.args.dataset == 'cub200':
+            self.encoder = tv_resnet18(pretrained=True)
+            self.encoder.fc = nn.Identity()         # Bypassing the fully connected layer
+            self.encoder_outdim = 512
+            self.proj_hidden_dim = 2048
+            self.proj_output_dim = 256
 
-        # Sup con projection also the projector which gets fine tuned during the joint session
+        # Select the projection head ('g' from the main paper)
         self.projector = self.select_projector()
 
-        # Note. FC is created from the mean outputs of the final linear layer of the projector for all class samples
+        # Final classifier. This hosts the pseudo targets, all and classification happens here
         self.fc = SRHead(self.args, self.proj_output_dim)
-
-        # For hard posiitves in the training set
-        self.path2conf = {}
 
         self.projector_ema = None
 
@@ -543,17 +505,6 @@ class MYNET(nn.Module):
 
     def reset_projector(self):
         self.projector.load_state_dict(self.best_projector)
-
-    def init_proj_ema(self):
-        self.projector_ema = EMA(
-            self.projector,
-            beta = self.args.proj_ema_beta,
-            update_after_step = 10,    
-            update_every = self.args.proj_ema_update_every
-        ).cuda()
-        self.center = torch.zeros(1, self.proj_output_dim).cuda()
-        self.teacher_temp = self.args.teacher_temp
-        self.student_temp = self.args.student_temp
 
     def update_center(self, teacher_output, center_momentum=0.9):
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
@@ -830,32 +781,6 @@ class MYNET(nn.Module):
                 tqdm_gen.set_description(out_string)
 
                 scheduler.step()
-
-    def get_hard_base_classes(self, trainset, trainloader):
-        """
-            Get the testing score for the fc that is being currently trained
-        """
-        trainset.get_ix = True
-        self.eval()        
-        with torch.no_grad():
-            # tqdm_gen = tqdm(trainloader)
-            for i, pair in enumerate(tqdm(trainloader)):
-                data = pair[0].cuda()
-                label = pair[1].cuda()
-                ixs = pair[2].cuda()
-
-                encoding = self.encode(data).detach()
-                logits = self.fc.get_logits(encoding)
-
-                for j, ix in enumerate(ixs):
-                    path = trainset.data[ix]
-                    conf = logits[j, label[j]].item()
-                    class_id = label[j].item()
-
-                    if class_id not in self.path2conf:
-                        self.path2conf[class_id] = {"path":[], "conf":[]}
-                    self.path2conf[class_id]["path"].append(path)
-                    self.path2conf[class_id]["conf"].append(conf)
 
     def test_fc_head(self, fc, testloader, epoch, session):
         """
@@ -1575,35 +1500,6 @@ class MYNET(nn.Module):
 
                     ta.add(count_acc(logits, label_rep))
 
-                    # Update projector ema
-                    if self.args.proj_ema_update:
-                        # When applying to novel classes it requires that the logits remain but that cannot be true
-                        if self.args.proj_ema_mode == "prev":
-                            base_classes_idx = torch.argwhere(label < (self.args.base_class + (self.args.way * (session-1)))).flatten()
-                        elif self.args.proj_ema_mode == "all":
-                            base_classes_idx = torch.arange(label.shape[0])
-                        elif self.args.proj_ema_mode == "base":
-                            base_classes_idx = torch.argwhere(label < self.args.base_class).flatten()
-                        if base_classes_idx.numel() != 0:
-                            e1, _ = torch.split(encodings, [bsz, bsz], dim=0)
-
-                            teacher_logits = self.projector_ema.ema_model(e1[base_classes_idx]).detach()       # Untrack gradients on this path
-                            teacher_logits = normalize(teacher_logits)
-
-                            # Proj ema without softmax
-                            teacher_logits = F.softmax((teacher_logits - self.center) / self.teacher_temp, dim=-1)
-                            # teacher_logits = F.softmax(teacher_logits / self.teacher_temp, dim=-1)
-                            
-                            student_logits = F.softmax(f1[base_classes_idx] / self.student_temp, dim=-1)
-                            # student_logits = F.softmax(f2[base_classes_idx] / self.student_temp, dim=-1)
-
-                            # Update teacher center
-                            self.update_center(teacher_logits)
-
-                            # Now apply cross entropy
-                            dist_loss = F.cross_entropy(teacher_logits, student_logits)
-                            loss += self.args.dist_lam * dist_loss
-
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -1672,21 +1568,3 @@ class MYNET(nn.Module):
         self.projector.load_state_dict(best_projector, strict=True)
         if self.args.fine_tune_backbone_joint:
             self.encoder.layer4.load_state_dict(best_l4, strict = True)        
-
-        # if self.args.proj_ema_update:
-        #     self.projector.load_state_dict(self.projector_ema.ema_model.state_dict(), strict=True)
-        
-        
-    def visualise_grad_flow(self, base_loader, inc_loader):        
-        # Run the base loader for several batches without optimizer.step
-
-        # Compute the sup con loss, xent loss and simplex loss
-        
-        # loss.backward
-        
-        # Skip optimizer.step to avoid gradient update
-
-        # Plot the visualisation as "grad_flow_base_{session}.png"
-
-        # Plot the visualisation as "grad_flow_base_{session}.png"
-        return
