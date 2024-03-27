@@ -12,7 +12,7 @@ import os
 
 from mixup import *
 from supcon import *
-from knn_classifier import WeightedKNNClassifier
+# from knn_classifier import WeightedKNNClassifier
 
 def test(model, testloader, epoch, args, session):
     test_class = args.base_class + session * args.way
@@ -408,7 +408,7 @@ def get_base_fc(trainset, transform, model, args, return_embeddings=False, retur
 
             embedding_list.append(embedding)
             label_list.append(label)
-    
+            
     embedding_list = torch.cat(embedding_list, dim=0)
     label_list = torch.cat(label_list, dim=0)
 
@@ -440,7 +440,7 @@ def get_base_fc(trainset, transform, model, args, return_embeddings=False, retur
     
     return prototypes
 
-from geom_median.torch import compute_geometric_median
+# from geom_median.torch import compute_geometric_median
     
 def get_base_gm(trainset, transform, model, args, return_embeddings=False, mode="encoder"):
     # replace fc.weight with the embedding average of train data

@@ -27,7 +27,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
 from scipy.optimize import linear_sum_assignment
 
-from ema_pytorch import EMA
+# from ema_pytorch import EMA
 
 import math
 
@@ -536,11 +536,13 @@ class MYNET(nn.Module):
 
         self.projector_ema = None
 
+        self.best_projector = None
+
     def set_projector(self):
-        self.set_projector = deepcopy(self.projector.state_dict())
+        self.best_projector = deepcopy(self.projector.state_dict())
 
     def reset_projector(self):
-        self.projector = torch.load(self.set_projector)
+        self.projector.load_state_dict(self.best_projector)
 
     def init_proj_ema(self):
         self.projector_ema = EMA(
@@ -1652,7 +1654,7 @@ class MYNET(nn.Module):
                         out_string = '(Joint) Sess: {}, loss {:.3f}|(b/n)({:.3f}/{:.3f})'\
                             .format(
                                     session, 
-                                    total_loss,
+                                    sc_total_loss + pull_total_loss,
                                     float('%.3f' % (tl["base"].item())),
                                     float('%.3f' % (tl["novel"].item())),
                                     float('%.3f' % (ta.item() * 100.0)),

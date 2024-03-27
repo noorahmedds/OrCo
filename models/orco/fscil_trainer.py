@@ -12,6 +12,8 @@ from supcon import *
 import utils
 # from dataloader.data_utils import *
 import dataloader.data_utils as data_utils
+from Network import MYNET
+import time
 
 from gaussian_utils import *
 
@@ -40,9 +42,9 @@ class FSCILTrainer(Trainer):
 
     def get_dataloader(self, session):
         if session == 0:
-            trainset, trainloader, testloader = get_base_dataloader(self.args)
+            trainset, trainloader, testloader = data_utils.get_base_dataloader(self.args)
         else:
-            trainset, trainloader, testloader = get_new_dataloader(self.args, session)
+            trainset, trainloader, testloader = data_utils.get_new_dataloader(self.args, session)
         return trainset, trainloader, testloader
 
     def train_phase2(self):
@@ -51,7 +53,7 @@ class FSCILTrainer(Trainer):
         """
         base_set, base_trainloader, base_testloader = self.get_dataloader(0)
         save_model_dir = os.path.join(self.args.save_path, 'session0_max_acc.pth')
-        self.model.load_state_dict(self.best_model_dict, strict=True)
+        self.model.load_state_dict(self.best_model_dict, strict=False)
 
         # Get mean prototypes from the projection head
         best_prototypes = helper.get_base_fc(base_set, base_testloader.dataset.transform, self.model, self.args)
@@ -68,7 +70,7 @@ class FSCILTrainer(Trainer):
         self.model.module.fc.assign_base_classifier(best_prototypes)        # Assign classifier to the best prototypes
 
         print("===[Phase-2] Aligning Base Classes to Pseudo Targets===")
-        _, sup_trainloader, _ = get_supcon_dataloader(self.args)
+        _, sup_trainloader, _ = data_utils.get_supcon_dataloader(self.args)
         self.model.module.update_fc_ft_base(sup_trainloader, base_testloader)
 
         # Save Phase-1 model
@@ -76,7 +78,7 @@ class FSCILTrainer(Trainer):
         self.best_model_dict = deepcopy(self.model.state_dict())
 
         # Compute Base Accuracy
-        out = helper.test(self.model, base_testloader, 0, args, 0)
+        out = helper.test(self.model, base_testloader, 0, self.args, 0)
         best_va = out[1]
 
         # Log
@@ -96,31 +98,27 @@ class FSCILTrainer(Trainer):
         # Set the projector in reset setting
         # TODO: Check if equivalent
         # self.best_projector = deepcopy(self.model.module.projector.state_dict())
-        self.model.set_projector()
+        self.model.module.set_projector()
 
         # Few-Shot Alignment (Phase 3)
         for session in range(1, self.args.sessions):
+            # Load base model/previous incremental session model
+            self.model.load_state_dict(self.best_model_dict, strict = True)
+
             if self.args.init_sess_w_base_proj:             # Resetting the projection head
-                # TODO: Check if equivalent
-                self.model.reset_projector()
-                # for k,v in self.best_projector.items():
-                #     self.best_model_dict[f"module.projector.{k}"] = v
+                self.model.module.reset_projector()
 
             # Load data for this session
             train_set, trainloader, testloader = self.get_dataloader(session)
-
-            # Load base model/previous incremental session model
-            self.model.load_state_dict(self.best_model_dict, strict = True)
 
             print("===[Phase-3][Session-%d] started!" % session)
             self.model.eval() # Following CEC          
 
             print("===[Phase-3][Session-%d] Assignment" % session)
-            new_prototypes = helper.get_base_fc(trainset, testloader.dataset.transform, self.model, self.args)
-            self.model.module.fc.assign_novel_classifier(new_prototypes)
+            self.model.module.update_fc(trainloader, testloader, np.unique(train_set.targets), session)
 
             print("===[Phase-3][Session-%d] Alignment" % session)
-            joint_set, jointloader = get_supcon_joint_dataloader(self.args, session, self.model.module.path2conf)
+            joint_set, jointloader = data_utils.get_supcon_joint_dataloader(self.args, session, self.model.module.path2conf)
             self.model.module.update_fc_ft_joint_supcon(jointloader, testloader, np.unique(joint_set.targets), session)
 
             # Compute scores
@@ -334,7 +332,7 @@ class FSCILTrainer(Trainer):
             self.args.save_path = os.path.join('debug', self.args.save_path)
 
         self.args.save_path = os.path.join('checkpoint', self.args.save_path)
-        ensure_path(self.args.save_path)
+        utils.ensure_path(self.args.save_path)
 
         # Make sub folders for confusion matrix
         self.cm_path = os.path.join(self.args.save_path, "confusion_matrix") 

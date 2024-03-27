@@ -22,12 +22,15 @@ Few-Shot Class Incremental Learning (FSCIL) introduces a paradigm in which the p
 ## Requirements
 - [PyTorch >= version 1.13.1](https://pytorch.org)
 - tqdm
+- matplotlib
+- pandas
+- scikit-learn
+- numpy
+- prettytable
 
 ## Datasets and pretrained models
 We follow [FSCIL](https://github.com/xyutao/fscil) setting and use the same data index_list for training splits across incremental sessions. 
-For Phase 1 of the OrCo framework and the datasets CIFAR100 and mini-ImageNet, we use the [solo-learn](https://github.com/vturrisi/solo-learn) library to train our model. You can download the pretrained models [here](?). Place the downloaded models under `./params/OrCo/` and unzip it using:
-
-    $ tar -xvf phase1_params.tar
+For Phase 1 of the OrCo framework and the datasets CIFAR100 and mini-ImageNet, we use the [solo-learn](https://github.com/vturrisi/solo-learn) library to train our model. You can download the pretrained models [here](https://drive.google.com/drive/folders/1bn7U5bWtGmubv_zIvyBwOMlBKFOFwquI?usp=sharing). Place the downloaded models under `./params/OrCo/` and unzip it.
 
 Note that for CUB200 we do not perform phase 1 given that it is common in literature to use an ImageNet pretrained model for incremental tasks. This is automatically handled from within the code.
 

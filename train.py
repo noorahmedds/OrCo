@@ -3,7 +3,7 @@ import importlib
 from utils import *
 
 # Global
-DATA_DIR = '../../datasets/'
+DATA_DIR = '../datasets/'
 
 def get_command_line_parser():
     parser = argparse.ArgumentParser()
