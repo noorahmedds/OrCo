@@ -2,16 +2,13 @@ import argparse
 import importlib
 from utils import *
 
-# Global
-DATA_DIR = '../datasets/'
-
 def get_command_line_parser():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-project', type=str, default="orco")
     parser.add_argument('-dataset', type=str, default='mini_imagenet',
                         choices=['mini_imagenet', 'cub200', 'cifar100'])
-    parser.add_argument('-dataroot', type=str, default=DATA_DIR)
+    parser.add_argument('-dataroot', type=str, default="../datasets/")
 
     # --- Other Params ---
 

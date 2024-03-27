@@ -1,15 +1,11 @@
 # OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning
 
-PyTorch implementation of OrCo Framework
+PyTorch implementation of the OrCo Framework
 [Paper](...)
 
 
 ## Abstract
 Few-Shot Class Incremental Learning (FSCIL) introduces a paradigm in which the problem space expands with limited data. FSCIL methods inherently face the challenge of catastrophic forgetting as data arrives incrementally, making models susceptible to overwriting previously acquired knowledge. Moreover, given the scarcity of labeled samples available at any given time, models may be prone to overfitting and find it challenging to strike a balance between extensive pretraining and the limited incremental data. To address these challenges, we propose the OrCo framework built on two core principles: features' orthogonality in the representation space, and contrastive learning. In particular, we improve the generalization of the embedding space by employing a combination of supervised and self-supervised contrastive losses during the pretraining phase. Additionally, we introduce OrCo loss to address challenges arising from data limitations during incremental sessions. Through feature space perturbations and orthogonality between classes, the OrCo loss maximizes margins and reserves space for the following incremental data. This, in turn, ensures the accommodation of incoming classes in the feature space without compromising previously acquired knowledge. Our experimental results showcase state-of-the-art performance across three benchmark datasets, including mini-ImageNet, CIFAR100, and CUB datasets.
-
-<!-- <img src='' width='600' height='400'> -->
-
-<!-- <p align="center">Continually Evolved Classifier</p> -->
 
 ## OrCo Framework
 
@@ -30,9 +26,9 @@ Few-Shot Class Incremental Learning (FSCIL) introduces a paradigm in which the p
 
 ## Datasets and pretrained models
 We follow [FSCIL](https://github.com/xyutao/fscil) setting and use the same data index_list for training splits across incremental sessions. 
-For Phase 1 of the OrCo framework and the datasets CIFAR100 and mini-ImageNet, we use the [solo-learn](https://github.com/vturrisi/solo-learn) library to train our model. You can download the pretrained models [here](https://drive.google.com/drive/folders/1bn7U5bWtGmubv_zIvyBwOMlBKFOFwquI?usp=sharing). Place the downloaded models under `./params/OrCo/` and unzip it.
+For Phase 1 of the OrCo framework and the datasets CIFAR100 and mini-ImageNet, we use the [solo-learn](https://github.com/vturrisi/solo-learn) library to train our model. You can download the pretrained models [here](https://drive.google.com/drive/folders/1bn7U5bWtGmubv_zIvyBwOMlBKFOFwquI?usp=sharing). Place the downloaded models under `./params/OrCo/` and unzip it. Note that for CUB200 we do not perform phase 1 given that it is common in literature to use an ImageNet pretrained model for incremental tasks. This is automatically handled from within the code.
 
-Note that for CUB200 we do not perform phase 1 given that it is common in literature to use an ImageNet pretrained model for incremental tasks. This is automatically handled from within the code.
+The datasets are made readily available by the authors of CEC in their github repository [here](https://github.com/icoz69/CEC-CVPR2021?tab=readme-ov-file#datasets-and-pretrained-models). Follow their provided instructions to download and unzip. We assume in our code that the datasets are present inside a `datasets` folder on the same directory level as the cloned repository. If this is not the case then you will need to overwrite the correct path in the shell script.
 
 ## Training
 
@@ -46,7 +42,7 @@ As an example, to run the mini-ImageNet experiment from the paper:
 For the above experiments find the computed metrics available under: `mini_imagenet/orco/<save_path_prefix>_<hp1_choice>-<hp2_choice>/results.txt`
 
 ## Citation
-If you use the code in this repo for your work, please cite the following bib entries:
+If you use this code to assist your research, please cite our paper using the following bib entry:
 
 <!--
     TODO
