@@ -8,3 +8,4 @@ __pycache__
 params/OrCo
 
 models/__archive__/
+models/__pycache__/
