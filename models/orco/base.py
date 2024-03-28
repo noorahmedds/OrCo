@@ -1,5 +1,4 @@
 import abc
-import torch
 import os.path as osp
 from dataloader.data_utils import *
 from copy import deepcopy

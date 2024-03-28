@@ -50,7 +50,7 @@ class CIFAR10(VisionDataset):
     }
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
-                 download=False, index=None, base_sess=None, keep_all = False, strong_target = None, base_aug_mag = 0):
+                 download=False, index=None, base_sess=None, keep_all = False, base_aug_mag = 0):
 
         super(CIFAR10, self).__init__(root, transform=transform,
                                       target_transform=target_transform)
@@ -84,16 +84,6 @@ class CIFAR10(VisionDataset):
 
         self.data = []
         self.targets = []
-
-        # self.strong_target = strong_target
-        # if self.strong_target is not None:
-        #     base_magnitude = 9
-        #     base_num_ops = 1
-        #     self.mag_rand_aug = []
-        #     for i in range(8):
-        #         # For each session create a strong trasnform:
-        #         self.mag_rand_aug.append(transforms.RandAugment(num_ops = base_num_ops + i, magnitude = base_magnitude))
-        #         # Apply only to base classes in increasing order
         
         self.base_aug_mag = base_aug_mag
         self.base_transform = None
@@ -136,7 +126,7 @@ class CIFAR10(VisionDataset):
         targets_tmp = []
         for i in index:
             ind_cl = np.where(i == targets)[0]
-            if data_tmp == []:
+            if type(data_tmp) == type([]):
                 data_tmp = data[ind_cl]
                 targets_tmp = targets[ind_cl]
             else:

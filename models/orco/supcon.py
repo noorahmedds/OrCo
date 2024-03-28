@@ -47,7 +47,7 @@ class SupConLoss(nn.Module):
         self.base_temperature = base_temperature
         self.lam_at = lam_at
 
-    def forward(self, features, labels=None, mask=None, margin = 0, hemisphere = False, pert_count = None):
+    def forward(self, features, labels=None, mask=None, margin = 0):
         """Compute loss for model. If both `labels` and `mask` are None,
         it degenerates to SimCLR unsupervised loss:
         https://arxiv.org/pdf/2002.05709.pdf
@@ -79,8 +79,6 @@ class SupConLoss(nn.Module):
             if labels.shape[0] != batch_size:
                 raise ValueError('Num of labels does not match num of features')
             mask = torch.eq(labels, labels.T).float().to(device)
-            if pert_count > 0:
-                mask[-pert_count:, -pert_count:] = 0
         else:
             mask = mask.float().to(device)
 
@@ -124,7 +122,6 @@ class SupConLoss(nn.Module):
         log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True)) # Numerator - denominator. Remember to ln rule. Ln(e^x) = x so ln(numerator/denominator) = numerator - ln(denominator)
 
         # compute mean of log-likelihood over positive  # mask.sum(1) == |P(i)| in the equation
-        # mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)  # mask the log_prob with the final mask which masks out all non positive cases 
         mean_log_prob_pos = (mask*log_prob).sum(1)
         mask_sum = mask.sum(1)
         mask_sum_mask = mask_sum > 0
@@ -132,8 +129,6 @@ class SupConLoss(nn.Module):
     
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        # import pdb; pdb.set_trace()
-        # loss = loss.view(anchor_count, batch_size - pert_count).mean()
         loss = loss.mean()
 
         return loss

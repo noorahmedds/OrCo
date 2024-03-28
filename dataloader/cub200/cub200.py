@@ -6,7 +6,6 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from dataloader.data_utils import rotate_img
 
 class CUB200(Dataset):
     def __init__(self, root='./', train=True,

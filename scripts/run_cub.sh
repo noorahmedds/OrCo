@@ -1,30 +1,19 @@
 python train.py \
     -project orco \
     -dataset cub200 \
-    -start_session 1 \
+    -save_path_prefix best \
     -gpu 0 \
-    -save_path_prefix best_ver2_projtype+jointxent \
-    -batch_size_joint 32 \
-    -train_inter \
-    -epochs_joint 100 \
-    -reserve_mode full \
     -epochs_base 100 \
-    -pull_criterion_novel xent \
-    -pull_criterion_base xent \
-    -joint_supcon \
-    -validation_metric hm \
+    -epochs_joint 100 \
+    -epochs_target_gen 5000 \
+    -batch_size_joint 32 \
+    -base_schedule Cosine \
     -joint_schedule Cosine \
+    -reserve_mode full \
+    -decay 5e-4 \
     -decay_new 1e-5 \
     -cos_b_lam 0.6 \
-    -decay 5e-4 \
-    -epochs_simplex 5000 \
-    -lr_new 0.05 \
-    -simplex_lam 1 \
-    -fine_tune_backbone_base \
     -lr_base 0.025 \
     -lr_base_encoder 0.025 \
-    -base_schedule Cosine \
-    -proj_type proj \
-    -init_sess_w_base_proj \
-    -perturb_mode inc+curr-base
-    # -sup_con_pretrain \
+    -lr_new 0.05 \
+    -fine_tune_backbone_base \

@@ -10,14 +10,9 @@ from copy import deepcopy
 import helper
 from supcon import *
 import utils
-# from dataloader.data_utils import *
 import dataloader.data_utils as data_utils
 from Network import ORCONET
 import time
-
-from gaussian_utils import *
-
-import wandb
 
 class FSCILTrainer(Trainer):
     def __init__(self, args):
@@ -30,9 +25,9 @@ class FSCILTrainer(Trainer):
         self.model = nn.DataParallel(self.model, list(range(self.args.num_gpu)))                        
         self.model = self.model.cuda()
 
+        self.best_model_dict = {}
         if self.args.model_dir is not None:                                                             # Loading pretrained model, Note that for CUB we use an imagenet pretrained model            
             state_dict = torch.load(self.args.model_dir)["state_dict"]
-            self.best_model_dict = {}
             # Adapt keys to match network
             for k,v in state_dict.items():
                 if "backbone" in k:
@@ -51,9 +46,11 @@ class FSCILTrainer(Trainer):
         """
             Base Alignment Phase: We aim to align the base dataset $D^0$ to the pseudo-targets through our OrCo loss. 
         """
-        base_set, base_trainloader, base_testloader = self.get_dataloader(0)
+        base_set, _, base_testloader = self.get_dataloader(0)
         save_model_dir = os.path.join(self.args.save_path, 'session0_max_acc.pth')
-        self.model.load_state_dict(self.best_model_dict, strict=False)
+        
+        if len(self.best_model_dict):
+            self.model.load_state_dict(self.best_model_dict, strict=False)
 
         # Compute the Mean Prototypes (Indicated as \mu_j in the paper) from the projection head
         best_prototypes = helper.get_base_prototypes(base_set, base_testloader.dataset.transform, self.model, self.args)
@@ -64,7 +61,7 @@ class FSCILTrainer(Trainer):
         print("===[Phase-2] Started!===")
         self.model.module.fc.assign_base_classifier(best_prototypes)        # Assign classes to the optimal pseudo target
         _, sup_trainloader, _ = data_utils.get_supcon_dataloader(self.args)
-        self.model.module.update_fc_ft_base(sup_trainloader, base_testloader)
+        self.model.module.update_base(sup_trainloader, base_testloader)
 
         # Save Phase-1 model
         torch.save(dict(params=self.model.state_dict()), save_model_dir)
@@ -72,7 +69,7 @@ class FSCILTrainer(Trainer):
 
         # Compute Phase-2 Accuracies
         out = helper.test(self.model, base_testloader, 0, self.args, 0)
-        best_va = out[1]
+        best_va = out[0]
 
         # Log the Phase-2 Accuracies
         print(f"[Phase-2] Accuracy: {best_va*100:.3f}")
@@ -91,13 +88,13 @@ class FSCILTrainer(Trainer):
         self.model.module.set_projector()
 
         # Few-Shot Alignment (Phase 3)
-        for session in range(1, self.args.sessions):
+        # for session in range(1, self.args.sessions):
+        for session in range(1, 2):
             # Load base model/previous incremental session model
             self.model.load_state_dict(self.best_model_dict, strict = True)
 
-            # Resetting the projection head
-            if self.args.init_sess_w_base_proj:             
-                self.model.module.reset_projector()
+            # Resetting the projection head to base             
+            self.model.module.reset_projector()
 
             # Load data for this session
             train_set, trainloader, testloader = self.get_dataloader(session)
@@ -106,21 +103,20 @@ class FSCILTrainer(Trainer):
             self.model.eval() # Following CEC
 
             # Assignment
-            self.model.module.update_fc(trainloader, testloader, np.unique(train_set.targets), session)
+            self.model.module.update_targets(trainloader, testloader, np.unique(train_set.targets), session)
 
             # Alignment
-            joint_set, jointloader = data_utils.get_supcon_joint_dataloader(self.args, session, self.model.module.path2conf)
-            self.model.module.update_fc_ft_joint_supcon(jointloader, testloader, np.unique(joint_set.targets), session)
+            _, jointloader = data_utils.get_supcon_joint_dataloader(self.args, session)
+            self.model.module.update_incremental(jointloader, session)
 
             # Compute scores
-            tsl, tsa, tsaNovel, tsaBase, vaSession, cw_acc, novel_cw, base_cw, cos_sims, fpr = helper.test(self.model, testloader, 0, self.args, session)
+            tsa, novel_cw, base_cw = helper.test(self.model, testloader, 0, self.args, session)
 
             # Save Accuracies and Means
             self.trlog['max_acc'][session] = float('%.3f' % (tsa * 100))
-            self.trlog['max_novel_acc'][session] = float('%.3f' % (tsaNovel * 100))
-            self.trlog['max_base_acc'][session] = float('%.3f' % (tsaBase * 100))
-            self.trlog["max_hm"][session] = float('%.3f' % (utils.hm(tsaBase, tsaNovel) * 100))
-            self.trlog["max_hm_cw"][session] = float('%.3f' % (utils.hm(base_cw, novel_cw) * 100))
+            self.trlog['max_novel_acc'][session] = float('%.3f' % (novel_cw * 100))
+            self.trlog['max_base_acc'][session] = float('%.3f' % (base_cw * 100))
+            self.trlog["max_hm"][session] = float('%.3f' % (utils.hm(base_cw, novel_cw) * 100))
 
             # Save the final model
             save_model_dir = os.path.join(self.args.save_path, 'session' + str(session) + '_max_acc.pth')
@@ -158,9 +154,6 @@ class FSCILTrainer(Trainer):
         
         result_list.append("Harmonic Mean: ")
         result_list.append(self.trlog['max_hm'])
-        
-        result_list.append("Harmonic Mean (Class-Wise Accuracy): ")
-        result_list.append(self.trlog['max_hm_cw'])
 
         result_list.append("Base Test Accuracy: ")
         result_list.append(self.trlog['max_base_acc'])
@@ -172,10 +165,6 @@ class FSCILTrainer(Trainer):
         result_list.append("Average Harmonic Mean Accuracy: ")
         result_list.append(average_harmonic_mean)
 
-        average_harmonic_mean_cw = np.array(self.trlog['max_hm_cw']).mean()
-        result_list.append("Average Harmonic Mean Accuracy Class-Wise: ")
-        result_list.append(average_harmonic_mean_cw)
-
         average_acc = np.array(self.trlog['max_acc']).mean()
         result_list.append("Average Accuracy: ")
         result_list.append(average_acc)
@@ -184,16 +173,13 @@ class FSCILTrainer(Trainer):
         result_list.append("Performance Decay: ")
         result_list.append(performance_decay)
 
-        print(f"acc: {self.trlog['max_acc']}")
+        print(f"\n\nacc: {self.trlog['max_acc']}")
         print(f"avg_acc: {average_acc:.3f}")
         print(f"hm: {self.trlog['max_hm']}")
         print(f"avg_hm: {average_harmonic_mean:.3f}")
-        print(f"hm_cw: {self.trlog['max_hm_cw']}")
-        print(f"avg_hm_cw: {average_harmonic_mean_cw:.3f}")
         print(f"pd: {performance_decay:.3f}")
         print(f"base: {self.trlog['max_base_acc']}")
-        print(f"novel: {self.trlog['max_novel_acc']}")
-        print('Base Session Best epoch:', self.trlog['max_acc_epoch'])        
+        print(f"novel: {self.trlog['max_novel_acc']}")    
         utils.save_list_to_txt(os.path.join(self.args.save_path, 'results.txt'), result_list)
 
 
@@ -205,30 +191,5 @@ class FSCILTrainer(Trainer):
         if self.args.save_path_prefix:
             self.args.save_path = self.args.save_path + self.args.save_path_prefix + "_" 
 
-        self.args.save_path = self.args.save_path + '%s-start_%d/' % (mode, self.args.start_session)
-        if self.args.schedule == 'Milestone':
-            mile_stone = str(self.args.milestones).replace(" ", "").replace(',', '_')[1:-1]
-            self.args.save_path = self.args.save_path + 'Epo_%d-Lr_%.4f-MS_%s-Gam_%.2f-Bs_%d-Mom_%.2f' % (
-                self.args.epochs_base, self.args.lr_base, mile_stone, self.args.gamma, self.args.batch_size_base,
-                self.args.momentum)
-        elif self.args.schedule == 'Step':
-            self.args.save_path = self.args.save_path + 'Epo_%d-Lr_%.4f-Step_%d-Gam_%.2f-Bs_%d-Mom_%.2f' % (
-                self.args.epochs_base, self.args.lr_base, self.args.step, self.args.gamma, self.args.batch_size_base,
-                self.args.momentum)
-
-        if 'cos' in mode:
-            self.args.save_path = self.args.save_path + '-T_%.2f' % (self.args.temperature)
-
-        self.args.save_path = self.args.save_path + '-opt_%s' % (self.args.optimizer)
-        self.args.save_path = self.args.save_path + '-vm_%s' % (self.args.validation_metric)
-
-        if self.args.debug:
-            self.args.save_path = os.path.join('debug', self.args.save_path)
-
         self.args.save_path = os.path.join('checkpoint', self.args.save_path)
         utils.ensure_path(self.args.save_path)
-
-        # Make sub folders for confusion matrix
-        self.cm_path = os.path.join(self.args.save_path, "confusion_matrix") 
-        if not os.path.exists(self.cm_path):
-            os.mkdir(self.cm_path)
