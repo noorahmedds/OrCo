@@ -17,7 +17,6 @@ from models.alice_model import resnet_CIFAR
 from models.resnet12_nc import *
 
 from helper import *
-from mixup import *
 from utils import *
 from copy import deepcopy
 
@@ -31,73 +30,50 @@ from scipy.optimize import linear_sum_assignment
 
 import math
 
-def compute_angles(vectors):
-    # Compute angles for each vector with all others from 
-    # Compute angles with the closesnt neighbour only
-    proto = vectors.cpu().numpy()
-    dot = np.matmul(proto, proto.T)
-    dot = dot.clip(min=0, max=1)
-    theta = np.arccos(dot)
-    np.fill_diagonal(theta, np.nan)
-    theta = theta[~np.isnan(theta)].reshape(theta.shape[0], theta.shape[1] - 1)
-    
-    avg_angle_close = theta.min(axis = 1).mean()
-    avg_angle = theta.mean()
-
-    return np.rad2deg(avg_angle), np.rad2deg(avg_angle_close)
-
-class SRHead(nn.Module):
+class PseudoTargetClassifier(nn.Module):
     def __init__(self, args, num_features):
         super().__init__()
         
         self.args = args
-
-        # Same as proj_output_dim
-        self.num_features = num_features
+        self.num_features = num_features        # Input dimension for all classifiers
 
         # Classifier for the base classes
-        # Note: To create the base fc we need for each class the mean projection output
         self.base_fc = nn.Linear(self.num_features, self.args.base_class, bias=False)       # Note the entire number of classes are already added
 
         # Set of all classifiers
         self.classifiers = nn.Sequential(self.base_fc)
 
-        # Register buffer for the rv
-        self.num_classes = args.num_classes
-        self.n_inc_classes = args.num_classes - args.base_class
+        # Register buffer for the pseudo targets. Assume the total number of classes
+        self.num_classes = self.args.num_classes
+        self.n_inc_classes = self.args.num_classes - self.args.base_class
 
-        self.reserve_vector_count = self.args.reserve_vector_count
-        if self.reserve_vector_count == -1:
-            if self.args.reserve_mode in ["novel"]:
-                self.reserve_vector_count = self.n_inc_classes
-            elif self.args.reserve_mode in ["all", "base_init", "two_step", "etf", "identity"]:
-                self.reserve_vector_count = self.num_classes
-            elif self.args.reserve_mode in ["full"]:
-                self.reserve_vector_count = self.num_features
-            elif self.args.reserve_mode in ["half"]:
-                self.reserve_vector_count = self.num_features//2
-            elif self.args.reserve_mode in ["colinear_negatives"]:
-                self.reserve_vector_count = self.num_classes
+        # Number of generated pseudo targets
+        if self.args.reserve_mode in ["all"]:
+            self.reserve_vector_count = self.num_classes
+        elif self.args.reserve_mode in ["full"]:
+            self.reserve_vector_count = self.num_features
 
+        # Storing the generated pseudo targets (reserved vectors)
         self.register_buffer("rv", torch.randn(self.reserve_vector_count, self.num_features))
 
-        self.radius = 1.0
+        self.temperature = 1.0
 
-        self.novel_temperature = 1.0
-        self.base_temperature = 1.0
+    def compute_angles(self, vectors):
+        proto = vectors.cpu().numpy()
+        dot = np.matmul(proto, proto.T)
+        dot = dot.clip(min=0, max=1)
+        theta = np.arccos(dot)
+        np.fill_diagonal(theta, np.nan)
+        theta = theta[~np.isnan(theta)].reshape(theta.shape[0], theta.shape[1] - 1)
+        
+        avg_angle_close = theta.min(axis = 1).mean()
+        avg_angle = theta.mean()
 
-    def get_assignment(self, cost, assignment_mode, prototypes):
-        """ Take cost array with cosine scores and return the output col ind """
-        if assignment_mode == "max":
-            row_ind, col_ind = linear_sum_assignment(cost, maximize = True)
-        elif assignment_mode == "min":
-            row_ind, col_ind = linear_sum_assignment(cost, maximize = False)
-        elif assignment_mode == "random":
-            col_ind = torch.randperm(self.rv.shape[0])[:cost.shape[0]]
-        elif assignment_mode == "cosine_penalty":
-            assigned_cost = compute_off_element_mean(cost)
-            cost = (cost + 2*assigned_cost)
-            row_ind, col_ind = linear_sum_assignment(cost, maximize = True)
+        return np.rad2deg(avg_angle), np.rad2deg(avg_angle_close)
+
+    def get_assignment(self, cost, assignment_mode):
+        """Tak array with cosine scores and return the output col ind """
+        _, col_ind = linear_sum_assignment(cost, maximize = True)
         return col_ind
 
     def get_classifier_weights(self, uptil = -1):
@@ -108,180 +84,57 @@ class SRHead(nn.Module):
             output.append(cls.weight.data)
         return torch.cat(output, axis = 0)
 
-    def assign_base_classifier(self, base_prototypes, base_cov=None):
+    def assign_base_classifier(self, base_prototypes):
         # Normalise incoming prototypes
         base_prototypes = normalize(base_prototypes)
 
-        # TODO: Add option to sample only args.base_class
         target_choice_ix = self.reserve_vector_count
-        if self.args.target_sampling:
-            target_choice_ix = self.args.base_class
 
-        if self.args.assign_similarity_metric == "cos":
-            cost = cosine_similarity(base_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "euclidean":
-            cost = euclidean_distances(base_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "mahalanobis":
-            cost = compute_pairwise_mahalanobis(base_prototypes.cpu(), base_cov, self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "cos_odd_inv":
-            # Odd indexes are inversed
-            cost = cosine_similarity(base_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-            inv_ix = np.arange(cost.shape[0])[1::2]
-            cost[inv_ix] = 1/cost[inv_ix]
-
-        # row_ind, col_ind = linear_sum_assignment(cost, maximize = True)
+        cost = cosine_similarity(base_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
  
-        col_ind = self.get_assignment(cost, self.args.assignment_mode_base, base_prototypes)
+        col_ind = self.get_assignment(cost, self.args.assignment_mode_base)
         
         new_fc_tensor = self.rv[col_ind]
 
-        avg_angle, avg_angle_close = compute_angles(new_fc_tensor)
+        avg_angle, avg_angle_close = self.compute_angles(new_fc_tensor)
         print(f"Selected Base Classifiers have average angle: {avg_angle} and average closest angle: {avg_angle_close}")
 
         # Create fixed linear layer
         self.classifiers[0].weight.data = new_fc_tensor
 
-        if not self.args.online_assignment:
-            # Remove from the final rv
-            all_idx = np.arange(self.rv.shape[0])
-            self.rv = self.rv[all_idx[~np.isin(all_idx, col_ind)]]
+        # Remove from the final rv
+        all_idx = np.arange(self.rv.shape[0])
+        self.rv = self.rv[all_idx[~np.isin(all_idx, col_ind)]]
 
-    def assign_novel_classifier(self, new_prototypes, online = False, cov_list = None):  
+    def assign_novel_classifier(self, new_prototypes):  
         # Normalise incoming prototypes
         new_prototypes = normalize(new_prototypes)
 
         target_choice_ix = self.reserve_vector_count
-        if self.args.target_sampling:
-            target_choice_ix = self.args.way
 
-        if self.args.assign_similarity_metric == "cos":
-            cost = cosine_similarity(new_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "euclidean":
-            cost = euclidean_distances(new_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "mahalanobis":
-            cost = compute_pairwise_mahalanobis(new_prototypes.cpu(), cov_list, self.rv.cpu()[:target_choice_ix])
-        elif self.args.assign_similarity_metric == "cos_odd_inv":
-            # Odd indexes are inversed
-            cost = cosine_similarity(new_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
-            inv_ix = np.arange(cost.shape[0])[1::2]
-            cost[inv_ix] = 1/cost[inv_ix]
-
-        # The linear sum assignment is maximised
-        # row_ind, col_ind = linear_sum_assignment(cost, maximize = True)
-
-        if self.args.assign_flip:
-            self.args.assignment_mode_novel = "max" if self.args.assignment_mode_novel == "min" else "min" 
+        cost = cosine_similarity(new_prototypes.cpu(), self.rv.cpu()[:target_choice_ix])
             
         col_ind = self.get_assignment(cost, self.args.assignment_mode_novel, new_prototypes)
         
         new_fc_tensor = self.rv[col_ind]
 
-        avg_angle, avg_angle_close = compute_angles(new_fc_tensor)
+        avg_angle, avg_angle_close = self.compute_angles(new_fc_tensor)
         print(f"Selected Novel Classifiers have average angle: {avg_angle} and average closest angle: {avg_angle_close}")
 
+        # Creating and appending a new classifier from the given reserved vectors
         new_fc = nn.Linear(new_fc_tensor.shape[1], new_fc_tensor.shape[0], bias=False).cuda()
         new_fc.weight.data.copy_(new_fc_tensor)
         self.classifiers.append(new_fc.cuda())
 
-        # Now for each row_ind append the new rv and remove it from the final rv
+        # Maintaining the pseudo targets. Self.rv contains only the unassigned vectors
         all_idx = np.arange(self.rv.shape[0])
         self.rv = self.rv[all_idx[~np.isin(all_idx, col_ind)]]
 
-    def assign_online(self, prototypes):
-        # Normalise incoming prototypes
-        prototypes = normalize(prototypes)
-
-        if self.args.assign_similarity_metric == "cos":
-            cost = cosine_similarity(prototypes.cpu(), self.rv.cpu())
-        elif self.args.assign_similarity_metric == "euclidean":
-            cost = euclidean_distances(prototypes.cpu(), self.rv.cpu())
-
-        # Inherit assignment mode from base
-        assignment_mode = self.args.assignment_mode_base
-        col_ind = self.get_assignment(cost, assignment_mode, prototypes)
-        
-        fc_tensor = self.rv[col_ind]
-
-        avg_angle, avg_angle_close = compute_angles(fc_tensor)
-        print(f"Selected Base Classifiers have average angle: {avg_angle} and average closest angle: {avg_angle_close}")
-
-        # Assume all classifier are already made, we now assign each classifier its tensor
-        for i, cls in enumerate(self.classifiers.children()):
-            if i == 0:
-                cls.weight.data = fc_tensor[:self.args.base_class]
-            else:
-                n_class_start = self.args.base_class + (self.args.way * (i-1))
-                n_class_end = self.args.base_class + (self.args.way * i)
-                cls.weight.data = fc_tensor[n_class_start:n_class_end]
-
-        # And rv remains un altered
-
-    def remove_assigned_rv(self, col_ind):
-        # Now for each row_ind append the new rv and remove it from the final rv
-        all_idx = np.arange(self.rv.shape[0])
-        self.rv = self.rv[all_idx[~np.isin(all_idx, col_ind)]]
-
-    def find_reseverve_vectors(self):
-        self.radius = 1.0
-        self.temperature = 0.5
-        
-        base_prototypes = normalize(self.base_fc.weight.data)
-        points = torch.randn(self.n_inc_classes, self.num_features).cuda()
-        points = normalize(points)
-        points = torch.nn.Parameter(points)
-        opt = torch.optim.SGD([points], lr=5)
-        
-        best_angle = 0
-        tqdm_gen = tqdm(range(2000))
-
-        for _ in tqdm_gen:
-            # Combining prototypes but only optimising the reserve vector
-            comb = torch.cat((points, base_prototypes), axis = 0)
-
-            # Compute the cosine similarity.
-            sim = F.cosine_similarity(comb[None,:,:], comb[:,None,:], dim=-1)
-            l = torch.log(torch.exp(sim/self.temperature).sum(axis = 1)).sum() / comb.shape[0]
-            
-            # opt.zero_grad()
-            l.backward()
-            opt.step()
-            points.data = normalize(points.data)
-
-            curr_angle, curr_angle_close = compute_angles(torch.cat((points, base_prototypes), axis = 0).detach())
-            if curr_angle > best_angle: # best angle is the angle with which the separation is maximised
-                best_angle = curr_angle
-
-            tqdm_gen.set_description(f"Loss = {l:.5f}, Best Avg Angle (deg): {best_angle:.3f}, Average Angle rv+base [close]: {curr_angle_close:.3f}")
-
-        # Setting Reserved vectors
-        self.rv = points.data
 
     def find_reseverve_vectors_all(self):
-        self.temperature = 1.0
-        
-        if self.args.reserve_mode == "colinear_negatives":
-            points = torch.randn(int(self.reserve_vector_count/2), self.num_features).cuda()
-        elif self.args.reserve_mode == "etf":
-            orth_vec = generate_random_orthogonal_matrix(self.num_features, self.reserve_vector_count).cuda()
-            i_nc_nc = torch.eye(self.reserve_vector_count).cuda()
-            one_nc_nc: torch.Tensor = torch.mul(torch.ones(self.reserve_vector_count, self.reserve_vector_count), (1 / self.reserve_vector_count)).cuda()
-            etf_vec = torch.mul(torch.matmul(orth_vec, i_nc_nc - one_nc_nc),
-                                math.sqrt(self.reserve_vector_count / (self.reserve_vector_count - 1)))
-            self.rv = etf_vec.T
-            return
-        elif self.args.reserve_mode == "identity":
-            i_nc_nc = torch.eye(self.num_features).cuda()[:self.reserve_vector_count]
-            self.rv = i_nc_nc
-            return
-        else:
-            points = torch.randn(self.reserve_vector_count, self.num_features).cuda()
-
+        points = torch.randn(self.reserve_vector_count, self.num_features).cuda()
         points = normalize(points)
         points = torch.nn.Parameter(points)
-        
-        if self.args.skip_orth:
-            self.rv = points.data
-            return
 
         opt = torch.optim.SGD([points], lr=1)
         
@@ -293,96 +146,11 @@ class SRHead(nn.Module):
             sim = F.cosine_similarity(points[None,:,:], points[:,None,:], dim=-1)
             l = torch.log(torch.exp(sim/self.temperature).sum(axis = 1)).sum() / points.shape[0]
             
-            # opt.zero_grad()
             l.backward()
             opt.step()
             points.data = normalize(points.data)
 
-            curr_angle, curr_angle_close = compute_angles(points.detach())
-            if curr_angle > best_angle: # best angle is the angle with which the separation is maximised
-                best_angle = curr_angle
-
-            tqdm_gen.set_description(f"Loss = {l:.5f}, Best Avg Angle (deg): {best_angle:.3f}, Average Angle rv+base [close]: {curr_angle_close:.3f}")
-
-        if self.args.reserve_mode == "colinear_negatives":
-            # Find colinear negative which are basically just opposite to one of the axis that we found
-            # They are pairwise orthogonal to every vector but this way in a single plan we have 4 points.
-            self.rv = torch.cat([points.data, -1*points.data], axis = 0)
-        else:
-            # Setting Reserved vectors
-            self.rv = points.data
-            # self.register_buffer('rv', points.data)
-
-    def find_reseverve_vectors_two_step(self, proto):
-        self.temperature = 1.0
-        
-        proto = normalize(proto)
-        points = torch.randn(self.n_inc_classes, self.num_features).cuda()
-        points = normalize(points)
-        points = torch.nn.Parameter(points)
-        opt = torch.optim.SGD([points], lr=1)
-        best_angle = 0
-        tqdm_gen = tqdm(range(1000))
-        print("(Simplex search) Optimising the randn to be far away from base prototype")
-        for _ in tqdm_gen:
-            comb = torch.cat((proto, points), axis = 0)
-            # Compute the cosine similarity.
-            sim = F.cosine_similarity(comb[None,:,:], comb[:,None,:], dim=-1)
-            l = torch.log(torch.exp(sim/self.temperature).sum(axis = 1)).sum() / comb.shape[0]
-            l.backward()
-            opt.step()
-            points.data = normalize(points.data)
-
-            curr_angle, curr_angle_close = compute_angles(points.detach())
-            if curr_angle > best_angle: # best angle is the angle with which the separation is maximised
-                best_angle = curr_angle
-            tqdm_gen.set_description(f"Loss = {l:.5f}, Best Avg Angle (deg): {best_angle:.3f}, Average Angle rv+base [close]: {curr_angle_close:.3f}")
-
-        # proto = torch.nn.Parameter(proto)
-        # points = torch.cat((proto, points), axis = 0)
-        points = torch.randn(self.num_classes, self.num_features).cuda()
-        points.data = torch.cat((proto, points), axis = 0)
-        points = torch.nn.Parameter(points)
-        opt = torch.optim.SGD([points], lr=1)
-        tqdm_gen = tqdm(range(10000))
-        print("(Simplex search) Optimising everything together")
-        for _ in tqdm_gen:
-            # Compute the cosine similarity.
-            sim = F.cosine_similarity(points[None,:,:], points[:,None,:], dim=-1)
-            l = torch.log(torch.exp(sim/self.temperature).sum(axis = 1)).sum() / points.shape[0]
-            l.backward()
-            opt.step()
-            points.data = normalize(points.data)
-
-            curr_angle, curr_angle_close = compute_angles(points.detach())
-            if curr_angle > best_angle: # best angle is the angle with which the separation is maximised
-                best_angle = curr_angle
-            tqdm_gen.set_description(f"Loss = {l:.5f}, Best Avg Angle (deg): {best_angle:.3f}, Average Angle rv+base [close]: {curr_angle_close:.3f}")
-
-        # Setting Reserved vectors
-        self.rv = points.data
-    
-    def find_reseverve_vectors_base_init(self, proto):
-        self.temperature = 1.0
-        
-        proto = normalize(proto)
-        points = torch.randn(self.reserve_vector_count - proto.shape[0], self.num_features).cuda()
-        points = normalize(points)
-        points = torch.cat((proto, points), axis = 0)
-        points = torch.nn.Parameter(points)
-        opt = torch.optim.SGD([points], lr=1)
-        best_angle = 0
-        tqdm_gen = tqdm(range(1000))
-        print("(Simplex search) Optimising combined base+rand to be far away")
-        for _ in tqdm_gen:
-            # Compute the cosine similarity.
-            sim = F.cosine_similarity(points[None,:,:], points[:,None,:], dim=-1)
-            l = torch.log(torch.exp(sim/self.temperature).sum(axis = 1)).sum() / points.shape[0]
-            l.backward()
-            opt.step()
-            points.data = normalize(points.data)
-
-            curr_angle, curr_angle_close = compute_angles(points.detach())
+            curr_angle, curr_angle_close = self.compute_angles(points.detach())
             if curr_angle > best_angle: # best angle is the angle with which the separation is maximised
                 best_angle = curr_angle
 
@@ -390,75 +158,15 @@ class SRHead(nn.Module):
 
         # Setting Reserved vectors
         self.rv = points.data
-    
-    def novel_requires_grad(self, value = True):
-        for i, cls in enumerate(self.classifiers.children()):
-            if isinstance(cls, nn.Sequential):
-                cls[-1].weight.requires_grad = value
-            elif isinstance(cls, nn.Sequential):
-                cls.weight.requires_grad = value
 
     def forward(self, x):
         return self.get_logits(x)
-    
-    def append_novel_classifier(self, new_head):
-        self.classifiers.append(new_head.cuda())
-
-    def create_new_classifier(self, init=None):
-        if init is None:
-            new_fc = nn.Linear(self.num_features, self.args.way, bias=False).cuda()
-
-        self.classifiers.append(new_fc)
         
     def get_logits(self, encoding, session = 0):
         output = []
         for i, cls in enumerate(self.classifiers.children()):
             out = F.linear(F.normalize(encoding, p=2, dim=-1), F.normalize(cls.weight, p=2, dim=-1))
-            temp = self.base_temperature if i == 0 else self.novel_temperature
-
-            out = out / temp
-
-            # Note: No detaching required given that the the the classifiers do not update
-            output.append(out)
-        output = torch.cat(output, axis = 1)
-        return output
-    
-    def get_spread_logits(self, encoding, class_variance):
-        output = []
-        # Generate perturbations
-        for i, cls in enumerate(self.classifiers.children()):
-            perturbations = []
-            num_features = cls.weight.shape[1]
-            for k in range(cls.weight.shape[0]):
-                if i == 0:
-                    offset = 0
-                else:
-                    offset = self.args.base_class
-                var_ix = k + offset
-                # Perturb the class weights by gaussian generated from class variance
-                x = torch.from_numpy(np.random.multivariate_normal(cls.weight[k, :].detach().cpu().numpy(),  np.eye(num_features)*class_variance[var_ix,:].T, 1))
-                perturbations.append(x)
-            perturbations = torch.cat(perturbations, axis=0).to(cls.weight.device).type(cls.weight.type())
-
-            out = F.linear(F.normalize(encoding, p=2, dim=-1), F.normalize(cls.weight + perturbations, p=2, dim=-1))
-            temp = self.base_temperature if i == 0 else self.novel_temperature
-
-            out = out / temp
-
-            # Note: No detaching required given that the the the classifiers do not update
-            output.append(out)
-        output = torch.cat(output, axis = 1)
-        return output
-
-    def get_dot(self, encoding, session = 0):
-        output = []
-        for i, cls in enumerate(self.classifiers.children()):
-            out = cls(encoding)
-            temp = self.base_temperature if i == 0 else self.novel_temperature
-
-            out = out / temp
-
-            # Note: No detaching required given that the the the classifiers do not update
+            out = out / self.temperature
             output.append(out)
         output = torch.cat(output, axis = 1)
         return output
@@ -492,13 +200,10 @@ class ORCONET(nn.Module):
 
         # Select the projection head ('g' from the main paper)
         self.projector = self.select_projector()
+        self.best_projector = None  # Stores the best projection head after phase 1
 
         # Final classifier. This hosts the pseudo targets, all and classification happens here
-        self.fc = SRHead(self.args, self.proj_output_dim)
-
-        self.projector_ema = None
-
-        self.best_projector = None
+        self.fc = PseudoTargetClassifier(self.args, self.proj_output_dim)
 
     def set_projector(self):
         self.best_projector = deepcopy(self.projector.state_dict())
@@ -506,29 +211,12 @@ class ORCONET(nn.Module):
     def reset_projector(self):
         self.projector.load_state_dict(self.best_projector)
 
-    def update_center(self, teacher_output, center_momentum=0.9):
-        batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        batch_center = batch_center / (len(teacher_output))
-        self.center = self.center*center_momentum + batch_center * (1 - center_momentum)
-
     def select_projector(self):
-        if self.args.proj_type == "linear":
-            projector = nn.Linear(self.encoder_outdim, self.proj_output_dim)
-        elif self.args.proj_type == "proj":
+        if self.args.proj_type == "proj":
             # projector
             projector = nn.Sequential(
                 nn.Linear(self.encoder_outdim, self.proj_hidden_dim),
                 nn.ReLU(),
-                nn.Linear(self.proj_hidden_dim, self.proj_output_dim),
-            )
-        elif self.args.proj_type == "proj_alice":
-            projector = nn.Sequential(
-                nn.Linear(self.encoder_outdim, self.proj_hidden_dim),
-                nn.BatchNorm1d(self.proj_hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.Linear(self.proj_hidden_dim, self.proj_hidden_dim),
-                nn.BatchNorm1d(self.proj_hidden_dim),
-                nn.ReLU(inplace=True),
                 nn.Linear(self.proj_hidden_dim, self.proj_output_dim),
             )
         elif self.args.proj_type == "proj_ncfscil":
@@ -541,31 +229,8 @@ class ORCONET(nn.Module):
                 nn.LeakyReLU(0.1),
                 nn.Linear(self.encoder_outdim * 2, self.proj_output_dim, bias=False),
             )
-        elif self.args.proj_type == "proj_mlp":
-            projector = projection_MLP(self.encoder_outdim, self.proj_output_dim, 2)
 
         return projector
-
-    def forward_sup_con(self, x, **kwargs):
-        if self.args.skip_encode_norm:
-            x = self.encode(x)
-        else:  
-            x = F.normalize(self.encode(x), dim = 1)
-
-        if self.args.skip_sup_con_head:
-            return x
-        
-        x = F.normalize(self.sup_con_head(x), dim=1)
-        
-        return x
-
-    def init_proj_random(self):
-        def init_weights(m):
-            if isinstance(m, nn.Linear):
-                torch.nn.init.xavier_uniform(m.weight)
-                m.bias.data.fill_(0.01)
-
-        self.projector.apply(init_weights)
         
     def forward_metric(self, x):
         # Get projection output
@@ -603,42 +268,6 @@ class ORCONET(nn.Module):
         else:
             raise ValueError('Unknown mode')
 
-    def update_fc(self, trainloader, testloader, class_list, session, mode="encoder"):
-        for batch in trainloader:
-            data, label = [_.cuda() for _ in batch]
-            if mode=="encoder":
-                data=self.encode(data).detach()
-            elif mode == "backbone":
-                data=self.encoder(data).detach()
-
-        new_prototypes, cov_list = self.get_class_avg(data, label, class_list)
-
-        # Assign a new novel classifier from the given reseve vectors
-        # Out of these reserve vectors we choose vectors which minimize the shift of the projector
-        # I.e. we choose reserve vectors for each class in the incremental session
-        # Based on the linear sum assignment
-        if mode == "encoder":
-            self.fc.assign_novel_classifier(new_prototypes, cov_list=cov_list)
-
-    def update_fc_online(self, trainloader, class_list):
-        # To handle batched data
-        all_data = []
-        all_label = []
-        for batch in trainloader:
-            data, label = [_.cuda() for _ in batch]
-            data = self.encode(data).detach()
-            all_data.append(data)
-            all_label.append(label)
-        all_data = torch.cat(all_data, axis = 0)
-        all_label = torch.cat(all_label)
- 
-        online, cov_list = self.get_class_avg(all_data, all_label, class_list)
-
-        self.fc.create_new_classifier() # Create a novel classifier
-        print("===Creating new classifier")
-        self.fc.assign_online(online)   # Assign to all classes
-        print("===Assigned best target to all classifier")
-
     def get_class_avg(self,data,label,class_list):
         """
             Using the exemplars available during training to instantiate the classifier for the novel setting
@@ -660,127 +289,32 @@ class ORCONET(nn.Module):
 
         return new_fc_tensor, cov_list
 
-    def get_logits(self,x,fc):
-        return F.linear(F.normalize(x, p=2, dim=-1), F.normalize(fc, p=2, dim=-1)) # self.args.temperature
+    def update_fc(self, trainloader, testloader, class_list, session, mode="encoder"):
+        for batch in trainloader:
+            data, label = [_.cuda() for _ in batch]
+            if mode=="encoder":
+                data=self.encode(data).detach()
+            elif mode == "backbone":
+                data=self.encoder(data).detach()
+
+        new_prototypes, _ = self.get_class_avg(data, label, class_list)
+
+        # Assign a new novel classifier from the given reseve vectors
+        if mode == "encoder":
+            self.fc.assign_novel_classifier(new_prototypes)
+
+    # def get_logits(self,x,fc):
+    #     return F.linear(F.normalize(x, p=2, dim=-1), F.normalize(fc, p=2, dim=-1)) # self.args.temperature
 
     def get_optimizer_new(self, optimized_parameters):
         if self.args.optimizer_joint == "sgd":
             optimizer = torch.optim.SGD(optimized_parameters,lr=self.args.lr_new, momentum=0.9, dampening=0.9 if not self.args.nesterov_new else 0, weight_decay=self.args.decay_new, nesterov=self.args.nesterov_new)
-        elif self.args.optimizer_joint == "adam":
-            optimizer = torch.optim.Adam(optimized_parameters, lr=self.args.lr_new, weight_decay=self.args.decay_new)   # wd:1e-6
-        elif self.args.optimizer_joint == "adamw":
-            optimizer = torch.optim.AdamW(optimized_parameters, lr=self.args.lr_new, weight_decay=self.args.decay_new)  # wd:1e-1
         return optimizer
 
-    def get_optimizer_base(self, optimized_parameters):
-        # # Optimising only the projector
-        # if self.args.fine_tune_backbone_base:
-        #     optimizer = torch.optim.SGD([
-        #         {'params': self.projector.parameters()},
-        #         {'params': self.encoder.parameters(), 'lr': self.args.lr_base_encoder}
-        #     ], lr=self.args.lr_base, momentum=0.9, dampening=0.9, weight_decay=self.args.decay)
-        #     detach_f = False
-        # else:
-        #     optimizer = torch.optim.SGD(self.projector.parameters(), lr=self.args.lr_base, momentum=0.9, dampening=0.9, weight_decay=self.args.decay)
-        #     detach_f = True
-        
+    def get_optimizer_base(self, optimized_parameters):        
         if self.args.optimizer == "sgd":
             optimizer = torch.optim.SGD(optimized_parameters, lr=self.args.lr_base, momentum=0.9, dampening=0.9, weight_decay=self.args.decay)
-        elif self.args.optimizer == "adam":
-            optimizer = torch.optim.Adam(optimized_parameters, lr=self.args.lr_base, weight_decay=self.args.decay)   # wd:1e-6
-        elif self.args.optimizer == "adamw":
-            optimizer = torch.optim.AdamW(optimized_parameters, lr=self.args.lr_base, weight_decay=self.args.decay)  # wd:1e-1
         return optimizer
-
-    def update_fc_ft_novel(self, trainloader, testloader, session):
-        theta1 = deepcopy(self.projector.state_dict())
-        kp_lam = self.args.kp_lam
-
-        optimizer = self.get_optimizer_new(self.projector.parameters())
-
-        # criterion = nn.CrossEntropyLoss()
-        criterion = self.select_criterion()
-
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 80],
-                                                            gamma=self.args.gamma)
-
-        best_loss = None
-        best_acc = None
-        best_hm = None
-
-        self.eval() # Fixing batch norm
-
-        average_gap = Averager()
-        average_gap_n = Averager()
-        average_gap_b = Averager()
-
-        # Before training accuracies
-        # val_freq = 10
-        val_freq = self.args.epochs_novel
-
-        with torch.enable_grad():
-            tqdm_gen = tqdm(range(self.args.epochs_novel))
-            for epoch in tqdm_gen:
-                total_loss = 0
-                ta = Averager()
-                for data, label in trainloader:
-                    data = data.cuda()
-                    label = label.cuda()
-
-                    if self.args.instance_mixup:
-                        data, label = instance_mixup_data(data, label)
-                        data, label = map(Variable, (data, label))
-
-                    encoding = self.encode(data, detach_f=True)
-
-                    # Get the cosine similarity to the classifier
-                    logits = self.fc(encoding)
-                    # logits = self.fc.get_dot(encoding)
-
-                    # Take the maximum logit score in the novel classifier and the maximum logit score in the previous sets of classes find the different in the logit outputs. 
-                    # Compute this distance for each batch sample and print
-                    for i in range(logits.shape[0]):
-                        average_gap.add(logits[i][self.args.base_class + (self.args.way * (session-1)):].max() - logits[i][:self.args.base_class].max())
-
-                    novel_logits = logits[:, self.args.base_class + (self.args.way * (session-1)):]
-                    base_logits = logits[:, :self.args.base_class]
-                    average_gap_n.add((novel_logits.max(axis=1)[0] - novel_logits.min(axis=1)[0]).mean())
-                    average_gap_b.add((base_logits.max(axis=1)[0] - base_logits.min(axis=1)[0]).mean())
-
-                    # BNCE Loss
-                    loss = self.criterion_forward(criterion, logits, label)
-
-                    loss += KP_loss(theta1, self.projector, lymbda_kp=kp_lam)
-                    
-                    ta.add(count_acc(logits, label))
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-
-                    total_loss += loss.item()
-
-
-                # Model Saving
-                if self.args.validation_metric_novel == "none":
-                    out_string = '(Novel) Session {}, current_loss {:.3f}, train_acc {:.3f}, Average Logit Gap {:.3f}, ALGb/n {:.3f}/{:.3f}'\
-                        .format(session, 
-                                total_loss, 
-                                float('%.3f' % (ta.item() * 100.0)), 
-                                float('%.3f' % (average_gap.item() * 100.0)),
-                                float('%.3f' % (average_gap_b.item() * 100.0)),
-                                float('%.3f' % (average_gap_n.item() * 100.0))
-                                )
-                    # if epoch % val_freq == 0:
-                    #     vl, va, vaNovel, vaBase, vhm, vam, vbin, vaNN, vaBB = self.test_fc_head(self.fc, testloader, epoch, session)
-                    #     s = (f"Top 1 Acc: {va*100:.3f}, "
-                    #         f"N/j Acc: {vaNovel*100:.3f}, "
-                    #         f"B/j Acc: {vaBase*100:.3f}, "
-                    #         f"Binary Accuracy: {vbin*100:.3f}")
-                    #     print(s)
-                        
-                tqdm_gen.set_description(out_string)
-
-                scheduler.step()
 
     def test_fc_head(self, fc, testloader, epoch, session):
         """
@@ -899,116 +433,16 @@ class ORCONET(nn.Module):
         }
 
         return metrics
+    
+    def select_criterion(self):
+        return nn.CrossEntropyLoss(label_smoothing=self.args.label_smoothing)
 
-    def test_fc(self, fc, testloader, epoch, session, norm_encoding = False):
-        """
-            Get the testing score for the fc that is being currently trained
-        """
-        test_class = self.args.base_class + session * self.args.way     # Final class idx that we could be in the labels this session
-        vl = Averager()
-        va = Averager()
-
-        # >>> Addition
-        vaBase = Averager() # Averager for novel classes only        
-        vaNovel = Averager() # Averager for novel classes only
-        vaBinary = Averager() # Averager for binary classification of novel and base classes
-
-        label_offset = 0
-        if self.args.base_only:
-            # Remove the logits between the novel and base classes
-            # or completely 0 them out.
-            label_offset = (session - 1) * self.args.way
-
-        # test_fc = fc.clone().detach()
-        self.eval()
-
-        with torch.no_grad():
-            tqdm_gen = tqdm(testloader)
-            for batch in tqdm_gen:
-                data, test_label = [_.cuda() for _ in batch]
-                test_label[test_label >= self.args.base_class] -= label_offset
-
-                # Get encoding
-                encoding = self.encode(data).detach()
-                logits = self.get_logits(encoding, fc)
-                logits = logits[:, :test_class]
-
-                loss = F.cross_entropy(logits, test_label)
-                acc = count_acc(logits, test_label)
-
-                bin_acc = count_acc_binary(logits, test_label, test_class, self.args)
-
-                # >>> Addition
-                novelAcc, baseAcc = count_acc_(logits, test_label, test_class, self.args)
-
-                vaNovel.add(novelAcc)
-                vaBase.add(baseAcc)
-                vaBinary.add(bin_acc)
-                vl.add(loss.item())
-                va.add(acc)
-
-            vl = vl.item()
-            va = va.item()
-
-            # >>> Addition 
-            vaNovel = vaNovel.item()
-            vaBase = vaBase.item()
-            vaBinary = vaBinary.item()
-
-        vhm = hm(vaNovel, vaBase)
-        vam = am(vaNovel, vaBase)
-
-        return vl, va, vaNovel, vaBase, vhm, vam, vaBinary
-
-    def select_criterion(self, base_sess = False):
-        criterion = self.args.pull_criterion_base if base_sess else self.args.pull_criterion_novel
-        if criterion == "xent":
-            return nn.CrossEntropyLoss(label_smoothing=self.args.label_smoothing)
-        elif criterion == "cosine":
-            return torch.nn.CosineEmbeddingLoss()
-        elif criterion == "xent+cosine":
-            return [nn.CrossEntropyLoss(), torch.nn.CosineEmbeddingLoss()]
-        elif criterion == "none":
-            return None
-
-    def criterion_forward(self, criterion, logits, label, base_sess = False):
-        crit = self.args.pull_criterion_base if base_sess else self.args.pull_criterion_novel
-        if crit == "xent":
-            return criterion(logits, label)
-        elif crit == "cosine":
-            target = torch.ones_like(label)
-            one_hot_label = F.one_hot(label, logits.shape[1])
-            return radial_label_smoothing(criterion, logits, one_hot_label, target, self.args.radial_label_smoothing)
-        elif crit == "xent+cosine":
-            xent_loss = criterion[0](logits, label)
-            target = torch.ones_like(label)
-            one_hot_label = F.one_hot(label, logits.shape[1])
-            cosine_loss = radial_label_smoothing(criterion[1], logits, one_hot_label, target, self.args.radial_label_smoothing)
-            return cosine_loss + self.args.xent_weight*xent_loss
-        elif crit == "cosine-squared":
-            # https://arxiv.org/pdf/1901.10514.pdf
-            # loss = torch.sum(torch.pow(1 - logits[torch.arange(label.shape[0]), label], 2))
-            # import pdb; pdb.set_trace()
-            loss = (1 - logits[torch.arange(label.shape[0]), label]).pow(2).sum()
-            return loss
-        elif crit == "none":
-            return 0
+    def criterion_forward(self, criterion, logits, label):
+        return criterion(logits, label)
     
     def update_fc_ft_base(self, baseloader, testloader, class_variance=None):
-        if self.args.skip_base_ft:
-            return self.test_fc_head(self.fc, testloader, 0, 0)["va"]
-
-        # Optimising only the projector
-        if self.args.fine_tune_backbone_base:
-            optimized_parameters = [
-                {'params': self.projector.parameters()},
-                {'params': self.encoder.parameters(), 'lr': self.args.lr_base_encoder}
-            ]
-            detach_f = False
-        else:
-            optimized_parameters = self.projector.parameters()
-            detach_f = True
-            
+        optimized_parameters = self.projector.parameters()
+        detach_f = True
         optimizer = self.get_optimizer_base(optimized_parameters)
 
         # Setting up the scheduler
@@ -1216,35 +650,6 @@ class ORCONET(nn.Module):
                 cos_loss += weight * self.criterion_forward(criterion, logits[session_idx, :], label_rep[session_idx])
 
         return cos_loss
-
-    def update_fc_ft_simplex_warmup(self, trainloader):
-        if self.args.fine_tune_backbone_joint:
-            optimizer = torch.optim.SGD([
-                {'params': self.projector.parameters()},
-                {'params': self.encoder.parameters(), 'lr': self.args.lr_new}
-            ], lr=self.args.lr_new, momentum=0.9, dampening=0.9, weight_decay=self.args.decay_new)
-        else:
-            optimizer = self.get_optimizer_new(self.projector.parameters())
-        with torch.enable_grad():
-            tqdm_gen = tqdm(range(self.args.warmup_epochs_simplex))
-            for epoch in tqdm_gen:
-                for batch in trainloader:
-                    images, label = batch
-                    if torch.cuda.is_available():
-                        images = images.cuda(non_blocking=True)
-                        label = label.cuda(non_blocking=True)
-        
-                    projections, _ = self.encode(images, detach_f=True, return_encodings=True)
-                    projections = normalize(projections)
-                    
-                    sloss = simplex_loss_in_batch(projections)
-
-                    optimizer.zero_grad()
-                    sloss.backward()
-                    optimizer.step()
-
-                tqdm_gen.set_description(f"Simplex loss: {sloss:.3f}")
-                    
 
     def update_fc_ft_joint_supcon(self, jointloader, testloader, class_list, session):
         # Optimising only the projector

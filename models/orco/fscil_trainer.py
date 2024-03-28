@@ -12,7 +12,7 @@ from supcon import *
 import utils
 # from dataloader.data_utils import *
 import dataloader.data_utils as data_utils
-from Network import MYNET
+from Network import ORCONET
 import time
 
 from gaussian_utils import *

@@ -204,7 +204,7 @@ def get_command_line_parser():
 
     # Reserve vector
     parser.add_argument('-reserve_mode', type=str, default='novel', # CEC -> ft_cos
-                        choices=["novel", "all", "two_step", "base_init", "full", "half", "colinear_negatives", "etf", "identity"]) # ft_dot means using linear classifier, ft_cos means using cosine classifier
+                        choices=["all", "full"]) # ft_dot means using linear classifier, ft_cos means using cosine classifier
     parser.add_argument('-apply_bnce', action='store_true')
     parser.add_argument('-use_ncfscil', action='store_true')
     parser.add_argument('-instance_mixup', action='store_true')
@@ -225,11 +225,11 @@ def get_command_line_parser():
     parser.add_argument('-joint_supcon', action='store_true')
     parser.add_argument('-testing_freq', type=float, default=5)
     parser.add_argument('-online_assignment', action='store_true')
-    parser.add_argument("-assignment_mode_base", type=str, default="max",
-                        choices=["min", "random", "max"]) 
-    parser.add_argument("-assignment_mode_novel", type=str, default="max",
-                        choices=["min", "random", "max", "cosine_penalty"])
-    parser.add_argument('-assign_flip', action="store_true", help="flip assignment mode between min and max every session")   
+    # parser.add_argument("-assignment_mode_base", type=str, default="max",
+    #                     choices=["min", "random", "max"]) 
+    # parser.add_argument("-assignment_mode_novel", type=str, default="max",
+    #                     choices=["min", "random", "max", "cosine_penalty"])
+    # parser.add_argument('-assign_flip', action="store_true", help="flip assignment mode between min and max every session")   
     # parser.add_argument('-reserve_init', type=str, default='randn', # CEC -> ft_cos
     #                     choices=["randn", "proto"]) # ft_dot means using linear classifier, ft_cos means using cosine classifier
     parser.add_argument('-epochs_simplex', type=int, default=1000)
@@ -244,8 +244,8 @@ def get_command_line_parser():
     parser.add_argument('-warmup_epochs_inc', type=int, default=10)
     parser.add_argument('-warmup_epochs_simplex', type=int, default=0)
 
-    parser.add_argument('-assign_similarity_metric', type=str, default='cos', # CEC -> ft_cos
-                        choices=["cos", "euclidean", "mahalanobis", "cos_odd_inv"]) # ft_dot means using linear classifier, ft_cos means using cosine classifier
+    # parser.add_argument('-assign_similarity_metric', type=str, default='cos', # CEC -> ft_cos
+    #                     choices=["cos", "euclidean", "mahalanobis", "cos_odd_inv"]) # ft_dot means using linear classifier, ft_cos means using cosine classifier
     parser.add_argument('-base_target_sampling', action="store_true")
     parser.add_argument('-target_sampling', action="store_true") 
     parser.add_argument('-supcon_views', type=int, default=2)
