@@ -6,3 +6,5 @@ checkpoint/*/
 __pycache__
 
 params/OrCo
+
+models/__archive__/
