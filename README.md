@@ -44,9 +44,13 @@ For the above experiments find the computed metrics available under: `mini_image
 ## Citation
 If you use this code to assist your research, please cite our paper using the following bib entry:
 
-<!--
-    TODO
--->
+        @inproceedings{ahmed2024orco,
+            title={OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning},
+            author={Ahmed, Noor and Kukleva, Anna and Schiele, Bernt},
+            booktitle={41st IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+            year={2024},
+            organization={IEEE}
+        }
 
 ## Acknowledgment
 Our project references the codes in the following repositories.
