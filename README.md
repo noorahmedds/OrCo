@@ -1,7 +1,7 @@
 # OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning
 
 PyTorch implementation of the OrCo Framework
-[Paper](https://arxiv.org/abs/2403.18550)
+[Paper](https://arxiv.org/abs/2403.18550), CVPR 2024 highlihght  🎉 
 
 
 ## Abstract
