@@ -4,7 +4,7 @@ python "train.py" \
     -save_path_prefix best \
     -gpu 0 \
     -model_dir ./params/OrCo/minet/minet_e380_01simclr_acc85_95.ckpt \
-    -epochs_base 1 \
+    -epochs_base 10 \
     -epochs_joint 100 \
     -batch_size_joint 64 \
     -joint_schedule Cosine \
