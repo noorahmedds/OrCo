@@ -1,0 +1,173 @@
+{
+    "os": "Linux-6.8.0-65-generic-x86_64-with-glibc2.35",
+    "python": "3.12.2",
+    "heartbeatAt": "2025-08-25T12:49:34.233861",
+    "startedAt": "2025-08-25T12:49:33.666438",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--config-path",
+        "./scripts/pretrain/minet/",
+        "--config-name",
+        "supcon_minet_aa_simclr_0_1.yaml"
+    ],
+    "state": "running",
+    "program": "/home/noah00001/Desktop/projects/OrCo/OrCo_src/solo_learn/main_pretrain.py",
+    "codePathLocal": "main_pretrain.py",
+    "codePath": "solo_learn/main_pretrain.py",
+    "git": {
+        "remote": "git@github.com:noorahmedds/OrCo.git",
+        "commit": "22b7a4b7886f0a0be0dbe9ab499e1d3fec0924cc"
+    },
+    "email": "noorahmedds@gmail.com",
+    "root": "/home/noah00001/Desktop/projects/OrCo/OrCo_src",
+    "host": "buzz",
+    "username": "noah00001",
+    "executable": "/home/noah00001/anaconda3/envs/fscil_env/bin/python",
+    "cpu_count": 12,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 2978.9620833333333,
+        "min": 2200.0,
+        "max": 3700.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2881.426,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2877.744,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2880.053,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2878.076,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2879.96,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4602.17,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3676.269,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4575.1,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2870.537,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2873.691,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2825.707,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3600.123,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4246.577,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3657.6,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4614.041,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 3519.256721496582,
+            "used": 3264.2866592407227
+        }
+    },
+    "gpu": "NVIDIA RTX A6000",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA RTX A6000",
+            "memory_total": 51527024640
+        }
+    ],
+    "memory": {
+        "total": 109.93789672851562
+    }
+}

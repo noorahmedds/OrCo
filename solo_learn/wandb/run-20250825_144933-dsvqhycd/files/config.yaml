@@ -1,0 +1,194 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    python_version: 3.12.2
+    cli_version: 0.16.4
+    framework: lightning
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1756126173.0
+    t:
+      1:
+      - 1
+      - 9
+      - 41
+      - 49
+      - 50
+      - 55
+      - 63
+      - 103
+      2:
+      - 1
+      - 9
+      - 41
+      - 49
+      - 50
+      - 55
+      - 63
+      - 103
+      3:
+      - 1
+      - 7
+      - 13
+      - 23
+      4: 3.12.2
+      5: 0.16.4
+      8:
+      - 5
+      13: linux-x86_64
+    m:
+    - 1: trainer/global_step
+      6:
+      - 3
+name:
+  desc: null
+  value: '(Group Minet) supcon (resnet18, proj_type: proj, aa_string: rand-m9-mstd0.5-inc1,
+    simclr_weight:0.1)'
+method:
+  desc: null
+  value: supcon
+backbone:
+  desc: null
+  value:
+    name: resnet18_alice
+    kwargs: {}
+method_kwargs:
+  desc: null
+  value:
+    proj_hidden_dim: 2048
+    proj_output_dim: 128
+    temperature: 0.2
+    margin: 0
+    proj_type: proj
+    apply_infonce: true
+    simclr_weight: 0.1
+    convex_loss_comb: true
+data:
+  desc: null
+  value:
+    dataset: fscil_minet
+    train_path: /home/noah00001/Desktop/dataset/
+    val_path: /home/noah00001/Desktop/dataset/
+    format: image_folder
+    num_workers: 4
+    aa_string: rand-m9-mstd0.5-inc1
+    no_labels: false
+    fraction: -1
+    num_classes: 60
+    num_large_crops: 2
+    num_small_crops: 0
+optimizer:
+  desc: null
+  value:
+    name: lars
+    batch_size: 512
+    lr: 0.8
+    classifier_lr: 0.4
+    weight_decay: 1.0e-05
+    kwargs:
+      momentum: 0.9
+      clip_lr: true
+      eta: 0.02
+      exclude_bias_n_norm: true
+    exclude_bias_n_norm_wd: false
+scheduler:
+  desc: null
+  value:
+    name: warmup_cosine
+    min_lr: 0
+    warmup_start_lr: 0.003
+    warmup_epochs: 10
+    lr_decay_steps: null
+    interval: step
+checkpoint:
+  desc: null
+  value:
+    enabled: true
+    dir: trained_models
+    frequency: 20
+    keep_prev: false
+auto_resume:
+  desc: null
+  value:
+    enabled: true
+    max_hours: 36
+max_epochs:
+  desc: null
+  value: 400
+devices:
+  desc: null
+  value:
+  - 0
+sync_batchnorm:
+  desc: null
+  value: true
+accelerator:
+  desc: null
+  value: gpu
+strategy:
+  desc: null
+  value: ddp
+precision:
+  desc: null
+  value: 16
+augmentations:
+  desc: null
+  value:
+  - rrc:
+      enabled: true
+      crop_min_scale: 0.08
+      crop_max_scale: 1.0
+    color_jitter:
+      prob: 0.8
+      brightness: 0.8
+      contrast: 0.8
+      saturation: 0.8
+      hue: 0.2
+    grayscale:
+      prob: 0.2
+    gaussian_blur:
+      prob: 0.5
+    solarization:
+      prob: 0.0
+    equalization:
+      prob: 0.0
+    horizontal_flip:
+      prob: 0.5
+    crop_size: 84
+    num_crops: 2
+    auto_augment: true
+    aa_string: rand-m9-mstd0.5-inc1
+wandb:
+  desc: null
+  value:
+    enabled: true
+    entity: null
+    project: Group MINET Supcon
+    offline: false
+debug_augmentations:
+  desc: null
+  value: false
+seed:
+  desc: null
+  value: 5
+resume_from_checkpoint:
+  desc: null
+  value: null
+num_nodes:
+  desc: null
+  value: 1
+accumulate_grad_batches:
+  desc: null
+  value: 1
+knn_eval:
+  desc: null
+  value:
+    enabled: false
+    k: 20
+    distance_func: euclidean
+performance:
+  desc: null
+  value:
+    disable_channel_last: false

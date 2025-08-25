@@ -11,30 +11,32 @@ hydra:
   run:
     dir: .
 
-name: "(Group CIFAR best_val) supcon (Group CIFAR) supcon (Resnet 12, aa_string: v0-mstd0.5, epochs:300, proj_output_dim:128, simclr_weight:0.1)" # change here for cifar100
+name: "minet_base" # change here to change name in wandb
 method: "supcon"
 backbone:
-  # name: "resnet18_alice"
-  name: "resnet12_nc"
+  name: "resnet18_alice"
 method_kwargs:
   proj_hidden_dim: 2048
-  proj_output_dim: 128 # <=====
-  temperature: 0.2 # 0.2 with 0.5 we have flatter representation and harder training
+  proj_output_dim: 128
+  temperature: 0.2 # 0.2 initially.
+  margin: 0
   proj_type: "proj"
   apply_infonce: True
   simclr_weight: 0.1
   convex_loss_comb: True
 data:
-  dataset: fscil_cifar100
-  train_path: "./datasets"
+  # dataset: cifar100 # change here for cifar100
+  dataset: fscil_minet
+  train_path: "/home/noah00001/Desktop/dataset/"
+  val_path: "/home/noah00001/Desktop/dataset/"
   format: "image_folder"
   num_workers: 4
-  aa_string: "v0-mstd0.5"
+  aa_string: "rand-m9-mstd0.5-inc1" #rand-m9-mstd0.5-inc1, v0-mstd0.5
 optimizer:
   name: "lars"
-  batch_size: 512 #512
-  lr: 0.8         #0.4 <===
-  classifier_lr: 0.1
+  batch_size: 512
+  lr: 0.4
+  classifier_lr: 0.2
   weight_decay: 0.00001
   kwargs:
     momentum: 0.9
@@ -49,13 +51,12 @@ scheduler:
 checkpoint:
   enabled: True
   dir: "trained_models"
-  frequency: -1 # If frequency is -1 then save the best model only
-  keep_prev: False
+  frequency: 20
 auto_resume:
-  enabled: False
+  enabled: True
 
 # overwrite PL stuff
-max_epochs: 300 #<===
+max_epochs: 400
 devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"

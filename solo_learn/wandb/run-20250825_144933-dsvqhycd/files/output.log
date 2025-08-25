@@ -1,0 +1,9 @@
+[34m[1mwandb[39m[22m: logging graph, to disable use `wandb.watch(log_graph=False)`
+/home/noah00001/anaconda3/envs/fscil_env/lib/python3.12/site-packages/lightning_fabric/connector.py:563: `precision=16` is supported for historical reasons but its usage is discouraged. Please set your precision to 16-mixed instead!
+
+
+
+
+
+Epoch 0:  28%|████████████████████████████████████████████████████████████████▊                                                                                                                                                                          | 16/58 [00:07<00:20,  2.00it/s, v_num=hycd]
+/home/noah00001/anaconda3/envs/fscil_env/lib/python3.12/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...

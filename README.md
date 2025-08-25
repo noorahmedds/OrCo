@@ -1,7 +1,7 @@
 # OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning
 
 [![Static Badge](https://img.shields.io/badge/arxiv-orco-red)](https://arxiv.org/abs/2403.18550)\
-PyTorch implementation of the OrCo Framework, CVPR 2024 highlight  🎉 
+PyTorch implementation of the OrCo Framework, CVPR 2024 highlight  🎉
 
 
 ## Abstract
@@ -25,21 +25,32 @@ Few-Shot Class-Incremental Learning (FSCIL) introduces a paradigm in which the p
 - prettytable
 
 ## Datasets and pretrained models
-We follow [FSCIL](https://github.com/xyutao/fscil) setting and use the same data index_list for training splits across incremental sessions. 
+We follow [FSCIL](https://github.com/xyutao/fscil) setting and use the same data index_list for training splits across incremental sessions.
 For Phase 1 of the OrCo framework and the datasets CIFAR100 and mini-ImageNet, we use the [solo-learn](https://github.com/vturrisi/solo-learn) library to train our model. You can download the pretrained models [here](https://drive.google.com/drive/folders/1bn7U5bWtGmubv_zIvyBwOMlBKFOFwquI?usp=sharing). Place the downloaded models under `./params/OrCo/` and unzip it. Note that for CUB200 we do not perform phase 1 given that it is common in literature to use an ImageNet pretrained model for incremental tasks. This is automatically handled from within the code.
 
 The datasets are made readily available by the authors of CEC in their github repository [here](https://github.com/icoz69/CEC-CVPR2021?tab=readme-ov-file#datasets-and-pretrained-models). Follow their provided instructions to download and unzip. We assume in our code that the datasets are present inside a `datasets` folder on the same directory level as the cloned repository. If this is not the case then you will need to overwrite the correct path in the shell script.
 
 ## Training
 
-With the current setup, Phase 2 and Phase 3 (Base and Incremental Sessions) of our pipeline are run sequentially with a single command. The final metrics can then be found in the `./logs` under the appropriate datasets. Find the scripts with the best hyperparameters under `./scripts`. 
+### Run the Alignment and Few-Shot Sessions (with pretrained weights)
+With the current setup, Phase 2 and Phase 3 (Base and Incremental Sessions) of our pipeline are run sequentially with a single command. The final metrics can then be found in the `./logs` under the appropriate datasets. Find the scripts with the best hyperparameters under `./scripts`.
 
 As an example, to run the mini-ImageNet experiment from the paper:
 
-    $ chmod +x ./scripts/run_minet.sh
-    $ ./scripts/run_minet.sh
+    $ chmod +x ./scripts/incremental_session/run_minet.sh
+    $ ./scripts/incremental_session/run_minet.sh
 
-For the above experiments find the computed metrics available under: `mini_imagenet/orco/<save_path_prefix>_<hp1_choice>-<hp2_choice>/results.txt`
+For the above experiments find the computed metrics available under: `checkpoint/mini_imagenet/orco/<save_path_prefix>_<hp1_choice>-<hp2_choice>/results.txt`
+
+### Pretrain Session
+To pretrain the models for mini-ImageNet and CIFAR from scratch we use the solo-learn library
+
+As an example, to pretrain the mini-ImageNet ResNet18 backbone from scratch:
+
+    $ chmod +x ./scripts/base_session/run_minet.sh
+    $ ./scripts/base_session/run_minet.sh
+
+The pretrained models are saved under: `./solo_learn/trained_models/supcon`. Update the corresponding incremental session shell script from the previous section to point to the correct pretrained .ckpt file.
 
 ## Citation
 If you use this code to assist your research, please cite our paper using the following bib entry:

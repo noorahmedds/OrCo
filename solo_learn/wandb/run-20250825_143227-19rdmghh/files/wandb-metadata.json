@@ -1,0 +1,173 @@
+{
+    "os": "Linux-6.8.0-65-generic-x86_64-with-glibc2.35",
+    "python": "3.12.2",
+    "heartbeatAt": "2025-08-25T12:32:28.576668",
+    "startedAt": "2025-08-25T12:32:27.989531",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--config-path",
+        "./scripts/pretrain/minet/",
+        "--config-name",
+        "supcon_minet_aa_simclr_0_1.yaml"
+    ],
+    "state": "running",
+    "program": "/home/noah00001/Desktop/projects/OrCo/OrCo_src/solo_learn/main_pretrain.py",
+    "codePathLocal": "main_pretrain.py",
+    "codePath": "solo_learn/main_pretrain.py",
+    "git": {
+        "remote": "git@github.com:noorahmedds/OrCo.git",
+        "commit": "22b7a4b7886f0a0be0dbe9ab499e1d3fec0924cc"
+    },
+    "email": "noorahmedds@gmail.com",
+    "root": "/home/noah00001/Desktop/projects/OrCo/OrCo_src",
+    "host": "buzz",
+    "username": "noah00001",
+    "executable": "/home/noah00001/anaconda3/envs/fscil_env/bin/python",
+    "cpu_count": 12,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 3444.1331666666665,
+        "min": 2200.0,
+        "max": 3700.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3779.795,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4029.015,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3775.807,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3780.091,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4725.139,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3700.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3700.231,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2791.427,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2239.435,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2798.87,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3699.973,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2200.0,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3779.997,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3707.064,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3695.552,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4727.828,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3777.518,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2798.028,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2799.928,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4231.832,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3699.176,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3676.513,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 2239.853,
+            "min": 2200.0,
+            "max": 3700.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 3519.256721496582,
+            "used": 3258.0663452148438
+        }
+    },
+    "gpu": "NVIDIA RTX A6000",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA RTX A6000",
+            "memory_total": 51527024640
+        }
+    ],
+    "memory": {
+        "total": 109.93789672851562
+    }
+}

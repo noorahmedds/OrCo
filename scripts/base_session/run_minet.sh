@@ -1,0 +1,1 @@
+cd solo_learn && python main_pretrain.py --config-path ./scripts/pretrain/minet --config-name base.yaml

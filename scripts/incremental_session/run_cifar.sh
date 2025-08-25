@@ -1,9 +1,11 @@
+model_dir="./params/OrCo/cifar100/cifar_e280_01simclr_acc80_22.ckpt"
+
 python "train.py" \
     -project orco \
     -dataset cifar100 \
     -save_path_prefix best \
     -gpu 0 \
-    -model_dir ./params/OrCo/cifar100/cifar_e280_01simclr_acc80_22.ckpt \
+    -model_dir ${model_dir} \
     -epochs_base 10 \
     -epochs_joint 100 \
     -batch_size_joint 64 \

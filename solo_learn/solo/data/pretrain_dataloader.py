@@ -32,11 +32,12 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.datasets import STL10, ImageFolder
 
+from solo.data.fscil_dataloader.cifar100.cifar import CIFAR100
+from solo.data.fscil_dataloader.miniimagenet.miniimagenet import MiniImageNet
+from solo.data.fscil_dataloader.cub200.cub200 import CUB200
+
 try:
     from solo.data.h5_dataset import H5Dataset
-    from solo.data.fscil_dataloader.cifar100.cifar import CIFAR100
-    from solo.data.fscil_dataloader.miniimagenet.miniimagenet import MiniImageNet
-    from solo.data.fscil_dataloader.cub200.cub200 import CUB200
 except ImportError:
     _h5_available = False
 else:
@@ -233,7 +234,7 @@ def build_transform_pipeline(dataset, cfg):
         return create_transform(
             input_size = cfg.crop_size,
             is_training=True,
-            color_jitter=None, 
+            color_jitter=None,
             scale = (cfg.rrc.crop_min_scale, cfg.rrc.crop_max_scale), # Added
             auto_augment=aa_string,  # Options: rand, augmix, other
             interpolation="bicubic",
@@ -383,8 +384,8 @@ def prepare_datasets(
     elif dataset == "fscil_cifar100":
         dataset_class = CIFAR100
         train_dataset = dataset_with_index(dataset_class)(
-            train_data_path, 
-            train=True, 
+            train_data_path,
+            train=True,
             download=download,
             transform=transform
             )
@@ -392,19 +393,19 @@ def prepare_datasets(
     elif dataset in ["fscil_minet", "fscil_minet_224"]:
         dataset_class = MiniImageNet
         train_dataset = dataset_with_index(dataset_class)(
-            train_data_path, 
-            train=True, 
+            train_data_path,
+            train=True,
             transform=transform
             )
 
     elif dataset == "fscil_cub200":
         dataset_class = CUB200
         train_dataset = dataset_with_index(dataset_class)(
-            train_data_path, 
-            train=True, 
+            train_data_path,
+            train=True,
             transform=transform
             )
-        
+
     elif dataset == "protoset_v1":
         dataset_class = ImageFolder
         train_dataset = dataset_with_index(dataset_class)(train_data_path, transform)
