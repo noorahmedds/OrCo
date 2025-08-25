@@ -27,8 +27,8 @@ method_kwargs:
 data:
   # dataset: cifar100 # change here for cifar100
   dataset: fscil_minet
-  train_path: "/home/noah00001/Desktop/dataset/"
-  val_path: "/home/noah00001/Desktop/dataset/"
+  train_path: "../../datasets"
+  val_path: "../../datasets/"
   format: "image_folder"
   num_workers: 4
   aa_string: "rand-m9-mstd0.5-inc1" #rand-m9-mstd0.5-inc1, v0-mstd0.5

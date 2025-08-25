@@ -11,3 +11,4 @@ models/__archive__/
 models/__pycache__/
 
 solo_learn/solo/datasets/*
+solo_learn/wandb/*

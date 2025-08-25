@@ -26,7 +26,7 @@ method_kwargs:
   convex_loss_comb: True
 data:
   dataset: fscil_cifar100
-  train_path: "./datasets"
+  train_path: "../../datasets"
   format: "image_folder"
   num_workers: 4
   aa_string: "v0-mstd0.5"
