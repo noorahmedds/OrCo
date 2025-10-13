@@ -16,7 +16,7 @@ import seaborn as sn
 from sklearn.metrics import confusion_matrix
 
 import torch.nn.functional as F
-
+import math
 
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
@@ -106,7 +106,7 @@ class Timer():
 
 def count_acc(logits, label):
     pred = torch.argmax(logits, dim=1)
-    if torch.cuda.is_available():      
+    if torch.cuda.is_available():
         return (pred == label).type(torch.cuda.FloatTensor).mean().item()
     else:
         return (pred == label).type(torch.FloatTensor).mean().item()
@@ -134,7 +134,7 @@ def createSessionalConfusionMatrix(y_true, y_pred, classes, cmap = None, hline_a
     session_ixs = [60, 65, 70, 75, 80, 85, 90, 95, 100]
     session_ixs = session_ixs[:session+1]
 
-    # Confusion matrix gt vs preds. if we want to see which preds are 
+    # Confusion matrix gt vs preds. if we want to see which preds are
     # For all sessions sum the predictions up
     # Map each label to its session
     y_true = np.digitize(y_true, session_ixs)
@@ -147,7 +147,7 @@ def createSessionalConfusionMatrix(y_true, y_pred, classes, cmap = None, hline_a
     # Compute for each class the top 5 most confused predictions
     top_preds = np.flip(np.argsort(df_cm.to_numpy(), axis = 1)[:, -6:], axis = 1)
 
-    plt.figure(figsize=(12, 7))    
+    plt.figure(figsize=(12, 7))
     heatmap = sn.heatmap(df_cm, annot=False, cmap = cmap, vmin=0, vmax=1)
     if hline_at is not None:
         line = heatmap.hlines([1],*heatmap.get_xlim(), colors='y')
@@ -169,20 +169,19 @@ def createSessionalConfusionMatrix(y_true, y_pred, classes, cmap = None, hline_a
     heatmap.set(xlabel="Predicted Classes", ylabel="True Classes", title=f"Session: {session}")
     return {"cm": heatmap.get_figure(), "df":df_cm}
 
-def normalize(x): 
+def normalize(x):
     x = x / torch.norm(x, dim=1, p=2, keepdim=True)
     return x
 
-import math
 def perturb_targets_norm_count(targets, target_labels, ncount, nviews, epsilon = 1, offset = 0):
     # Create ncount perturbations
     # Output should have each target represented
     # Return the labels as well
-    
+
     views = []
     ix = torch.randperm(targets.shape[0])
     if ix.shape[0] < ncount:
-        rep_count = math.ceil(ncount/ix.shape[0])            
+        rep_count = math.ceil(ncount/ix.shape[0])
         ix = ix.repeat(rep_count)[:ncount]
         ix = ix[torch.randperm(ix.shape[0])]
     else:
@@ -190,7 +189,7 @@ def perturb_targets_norm_count(targets, target_labels, ncount, nviews, epsilon =
     for v in range(nviews):
         rand = ((torch.rand(ncount, targets.shape[1]) - offset) * epsilon).to(targets.device)
         views.append(normalize(targets[ix] + rand))
-    
+
     target_labels = target_labels[ix]
     return views, target_labels
 
@@ -199,7 +198,7 @@ def simplex_loss(feat, labels, assigned_targets, assigned_targets_label, unassig
     # === Apply on averaged features + all targets (assign not in batch + unassigned)
     unique_labels, inverse_indices, counts = torch.unique(labels, return_inverse=True, return_counts = True)
     averaged = torch.zeros(len(unique_labels), feat.shape[1]).cuda()
-    
+
     for i, l in enumerate(unique_labels):
         label_indices = torch.where(labels == l)[0]
         averaged_row = torch.mean(feat[label_indices], dim=0)
